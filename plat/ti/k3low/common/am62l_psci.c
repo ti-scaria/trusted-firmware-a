@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, Texas Instruments Incorporated - https://www.ti.com/
+ * Copyright (C) 2025-2026, Texas Instruments Incorporated - https://www.ti.com/
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -14,11 +14,14 @@
 #include <lib/mmio.h>
 #include <lib/psci/psci.h>
 #include <plat/common/platform.h>
+#include <ti_device_handler.h>
+#include <ti_device_pm.h>
 #include <ti_sci.h>
 #include <ti_sci_protocol.h>
 
 #include <k3_gicv3.h>
 #include <platform_def.h>
+#include <ti_devices.h>
 
 uintptr_t am62l_sec_entrypoint;
 uintptr_t am62l_sec_entrypoint_glob;
@@ -60,10 +63,11 @@ static int am62l_pwr_domain_on(u_register_t mpidr)
 		return PSCI_E_INTERN_FAIL;
 	}
 
-	/*
-	 * TODO: Add the actual PM operation call
-	 * to turn on the core here
-	 */
+	ret = ti_set_device_handler(AM62LX_DEV_A53_0 + core, true);
+	// if (ret != 0) {
+	// 	return PSCI_E_INTERN_FAIL;
+	// }
+	ti_device_id_set_state(AM62LX_DEV_A53_0 + core, true);
 	return PSCI_E_SUCCESS;
 }
 
@@ -74,12 +78,21 @@ static void am62l_pwr_domain_off(const psci_power_state_t *target_state)
 
 	/* Prevent interrupts from spuriously waking up this cpu */
 	k3_gic_cpuif_disable();
-
 }
 
 static void am62l_pwr_down_domain(const psci_power_state_t *target_state)
 {
-	/* TODO: Add the actual pm operation call to turn off the core */
+	int core;
+	// int ret;
+
+	core = plat_my_core_pos();
+
+	VERBOSE("%s: A53 CORE: %d OFF\n", __func__, core);
+	// ret = ti_set_device_handler(AM62LX_DEV_A53_0 + core, false);
+	// if (ret != 0) {
+	// 	ERROR("Failed powering down of core %d: %d\n", core, ret);
+	// }
+	ti_device_id_drop_pwr_up_ref(AM62LX_DEV_A53_0 + core);
 }
 
 void am62l_pwr_domain_on_finish(const psci_power_state_t *target_state)

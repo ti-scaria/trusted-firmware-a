@@ -288,7 +288,11 @@ void ti_psc_pd_put(struct ti_device *dev, struct ti_psc_pd *pd)
 		psc_write(dev, pdctl, psc_reg(PSC_PDCTL_BASE, idx));
 
 		pd_initiate(dev, pd);
-		ti_psc_pd_wait(dev, pd);
+
+		/* Skip waiting for A53 cores to avoid WFI deadlock */
+		if ((psc->pd_data[idx].flags & TI_PSC_PD_SKIP_WAIT) == 0U) {
+			ti_psc_pd_wait(dev, pd);
+		}
 	}
 
 	psc_pd_clk_put(&psc->pd_data[idx]);
@@ -790,7 +794,6 @@ static void lpsc_module_put_internal(struct ti_device *dev,
 {
 	const struct ti_psc_drv_data *psc = ti_to_psc_drv_data(ti_get_drv_data(dev));
 	bool modify = false;
-
 	if (use) {
 		VERBOSE("MODULE_PUT: psc_id=%d lpsc_id=%d use_count=%d\n",
 			psc->psc_idx, ti_lpsc_module_idx(dev, module),

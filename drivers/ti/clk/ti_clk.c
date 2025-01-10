@@ -319,9 +319,18 @@ void ti_clk_put(struct ti_clk *clkp)
 	struct ti_clk *clkp_parent;
 
 	assert(clkp != NULL);
-	assert(__atomic_load_n(&clkp->ref_count, __ATOMIC_ACQUIRE) > 0U);
 
-	new_count = __atomic_sub_fetch(&clkp->ref_count, 1U, __ATOMIC_ACQ_REL);
+	/* For clocks with NO_ATOMIC flag, avoid atomic operations (used during CPU hotplug with caches coherency disabled) */
+	if ((clkp->flags & TI_CLK_FLAG_NO_ATOMIC) != 0U) {
+		assert(clkp->ref_count > 0U);
+		clkp->ref_count--;
+		new_count = clkp->ref_count;
+	} else {
+		/* Use atomic operations for all other clocks */
+		assert(__atomic_load_n(&clkp->ref_count, __ATOMIC_ACQUIRE) > 0U);
+		new_count = __atomic_sub_fetch(&clkp->ref_count, 1U, __ATOMIC_ACQ_REL);
+	}
+
 	if (new_count == 0U) {
 		p = ti_clk_mux_get_parent(clkp);
 		ti_clk_set_state(clkp, false);

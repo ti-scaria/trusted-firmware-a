@@ -147,36 +147,11 @@ static inline void ti_device_set_reset_iso(struct ti_device *dev, bool enable)
 }
 
 /**
- * ti_device_id_pwr_up_ref() - Set the power up references for a device by index.
+ * ti_device_id_set_state() - Enable/disable a device by its device_id
  * @idx: The index of the device.
- *
- * Note: This function only increments the PSC module use_count. It does not trigger
- * PSC state transitions. Use when PSC state is managed externally (e.g., during
- * CPU hotplug where state is controlled directly).
+ * @enable: True to enable the device, false to allow the PMMC to power down the device.
  */
-void ti_device_id_pwr_up_ref(ti_dev_idx_t idx);
-
-/**
- * ti_device_id_drop_pwr_up_ref() - Drop the power up references for a device by index.
- * @idx: The index of the device.
- *
- * Note: This function only decrements the PSC module use_count. It does not trigger
- * PSC state transitions. Use when PSC state is managed externally (e.g., during
- * CPU hotplug where state is controlled directly).
- */
-void ti_device_id_drop_pwr_up_ref(ti_dev_idx_t idx);
-
-/**
- * ti_soc_device_pwr_up_ref() - Set power up reference for all PSC domains associated with a device.
- * @dev: The device for which to set power up references.
- */
-void ti_soc_device_pwr_up_ref(struct ti_device *dev);
-
-/**
- * ti_soc_device_drop_pwr_up_ref() - Drop power up reference for all PSC domains associated with a device.
- * @dev: The device for which to drop power up references.
- */
-void ti_soc_device_drop_pwr_up_ref(struct ti_device *dev);
+void ti_device_id_set_state(ti_dev_idx_t idx, bool enable);
 
 /* Return values for ti_device_get_state() and ti_soc_device_get_state() */
 #define TI_DEVICE_STATE_DISABLED        0U /* Module is off (SwRstDisable) */
