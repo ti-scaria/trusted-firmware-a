@@ -96,7 +96,7 @@ static void report_attributes(struct scmi_msg *msg)
 	size_t agent_count = plat_scmi_clock_count(msg->agent_id);
 	struct scmi_protocol_attributes_p2a return_values = {
 		.status = SCMI_SUCCESS,
-		.attributes = SCMI_CLOCK_PROTOCOL_ATTRIBUTES(1U, agent_count),
+		.attributes = SCMI_CLOCK_PROTOCOL_ATTRIBUTES(0U, agent_count),
 	};
 
 	if (msg->in_size != 0) {
