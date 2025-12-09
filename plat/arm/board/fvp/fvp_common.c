@@ -598,8 +598,8 @@ int32_t plat_get_soc_name(char *soc_name)
 #if ENABLE_RMM
 
 /* BDF mappings for RP0 RC0 */
-const struct bdf_mapping_info rc0rp0_bdf_data[] = {
-	/* BDF0 */
+static struct bdf_mapping_info rc0rp0_bdf_data[] = {
+	/* BDF0 - 127 (0x0 -> 0x7FFF) */
 	{0U,		/* mapping_base */
 	 0x8000U,	/* mapping_top */
 	 0U,		/* mapping_off */
@@ -607,24 +607,44 @@ const struct bdf_mapping_info rc0rp0_bdf_data[] = {
 	}
 };
 
+/* BDF mappings for RP1 RC0 */
+static struct bdf_mapping_info rc0rp1_bdf_data[] = {
+	/* BDF128+ (0x8000 -> 0xFFFE) */
+	{0x8000U,	/* mapping_base */
+	 0xFFFFU,	/* mapping_top */
+	 0U,		/* mapping_off */
+	 0U		/* smmu_idx */
+	}
+};
+
+/* Root Port IDs for FVP */
+#define RC0_RP0_BDF		0x8U		/* Bus: 0x0 Dev: 0x1 Func: 0x0 */
+#define RC0_RP1_BDF		0x10U		/* Bus: 0x0 Dev: 0x2 Func: 0x0 */
+
 /* Root ports for RC0 */
-const struct root_port_info rc0rp_data[] = {
+static struct root_port_info rc0rp_data[] = {
 	/* RP0 */
-	{0U,						/* root_port_id */
+	{RC0_RP0_BDF,					/* root_port_id */
 	 0U,						/* padding */
-	 ARRAY_SIZE(rc0rp0_bdf_data),			/* num_bdf_mappings */
-	 (struct bdf_mapping_info *)rc0rp0_bdf_data	/* bdf_mappings */
+	 (uint32_t)ARRAY_SIZE(rc0rp0_bdf_data),		/* num_bdf_mappings */
+	 rc0rp0_bdf_data				/* bdf_mappings */
+	},
+	/* RP1 */
+	{RC0_RP1_BDF,					/* root_port_id */
+	 0U,						/* padding */
+	 (uint32_t)ARRAY_SIZE(rc0rp1_bdf_data),		/* num_bdf_mappings */
+	 rc0rp1_bdf_data				/* bdf_mappings */
 	}
 };
 
 /* Root complexes */
-const struct root_complex_info rc_data[] = {
+static struct root_complex_info rc_data[] = {
 	/* RC0 */
 	{PCIE_EXP_BASE,				/* ecam_base */
 	 0U,					/* segment */
 	 {0U, 0U, 0U},				/* padding */
-	 ARRAY_SIZE(rc0rp_data),		/* num_root_ports */
-	 (struct root_port_info *)rc0rp_data	/* root_ports */
+	 (uint32_t)ARRAY_SIZE(rc0rp_data),	/* num_root_ports */
+	 rc0rp_data				/* root_ports */
 	}
 };
 
