@@ -113,6 +113,28 @@ void ti_device_set_state(struct ti_device *device_ptr, uint8_t host_idx, bool en
 }
 
 /**
+ * ti_device_id_set_state() - Enable/disable a device by its device_id
+ * @idx: The index of the device.
+ * @enable: True to enable the device, false to disable.
+ */
+void ti_device_id_set_state(ti_dev_idx_t idx, bool enable)
+{
+	struct ti_device *dev;
+
+	assert(idx < soc_device_count);
+
+	dev = &soc_devices[idx];
+
+	if (enable == true) {
+		ti_device_set_retention(dev, enable);
+	}
+	ti_device_set_state(dev, TI_DEV_POWER_ON_ENABLED_HOST_IDX, enable);
+	if (enable == false) {
+		ti_device_set_retention(dev, enable);
+	}
+}
+
+/**
  * ti_device_set_retention() - Enable or disable device retention.
  * @device_ptr: The device to modify.
  * @retention: True to enable retention, false to disable.

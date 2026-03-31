@@ -66,6 +66,11 @@ static inline uint32_t ti_mask_cover_for_number(uint32_t number)
 /* Clock should be enabled during power-up */
 #define TI_CLK_FLAG_PWR_UP_EN			((uint8_t) BIT(0))
 
+/* Clock should not use atomic operations for ref_count updates
+ * Used during CPU Hotplug where cache coherency is disabled.
+ */
+#define TI_CLK_FLAG_NO_ATOMIC			((uint8_t) BIT(1))
+
 /* Clock has been initialized */
 #define TI_CLK_FLAG_INITIALIZED			((uint8_t) BIT(2))
 
