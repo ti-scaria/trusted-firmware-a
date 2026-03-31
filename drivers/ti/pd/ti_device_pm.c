@@ -112,6 +112,60 @@ void ti_device_set_state(struct ti_device *device_ptr, uint8_t host_idx, bool en
 	}
 }
 
+int ti_device_id_pwr_up_ref(ti_dev_idx_t idx)
+{
+	struct ti_device *dev;
+	const struct ti_dev_data *data;
+	int32_t i;
+	int ret;
+
+	assert(idx < soc_device_count);
+
+	dev = &soc_devices[idx];
+
+	data = ti_get_dev_data(dev);
+
+	dev->flags |= (uint32_t)TI_DEV_FLAG_ENABLED(TI_DEV_POWER_ON_ENABLED_HOST_IDX);
+
+	for (i = 0U; i < data->n_clocks; i++) {
+		ti_device_clk_enable(dev, i);
+	}
+
+	ret = ti_soc_device_pwr_up_ref(dev);
+	if (ret != 0) {
+		return ret;
+	}
+
+	return 0;
+}
+
+int ti_device_id_drop_pwr_up_ref(ti_dev_idx_t idx)
+{
+	struct ti_device *dev;
+	const struct ti_dev_data *data;
+	int32_t i;
+	int ret;
+
+	assert(idx < soc_device_count);
+
+	dev = &soc_devices[idx];
+
+	data = ti_get_dev_data(dev);
+
+	dev->flags &= ~(uint32_t)TI_DEV_FLAG_ENABLED(TI_DEV_POWER_ON_ENABLED_HOST_IDX);
+
+	for (i = (int32_t) data->n_clocks - 1; i >= 0; i--) {
+		ti_device_clk_disable(dev, (uint16_t) i);
+	}
+
+	ret = ti_soc_device_drop_pwr_up_ref(dev);
+	if (ret != 0) {
+		return ret;
+	}
+
+	return 0;
+}
+
 /**
  * ti_device_set_retention() - Enable or disable device retention.
  * @device_ptr: The device to modify.

@@ -162,6 +162,124 @@ uint32_t ti_soc_device_get_context_loss_count(struct ti_device *dev)
 }
 
 /**
+ * ti_soc_device_pwr_up_ref_internal() - Increment PSC module use_count only.
+ * @dev: SoC device data identifying the PSC index and LPSC module.
+ *
+ * Note: Does not trigger PSC state transitions.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+static int ti_soc_device_pwr_up_ref_internal(const struct ti_soc_device_data *dev)
+{
+	struct ti_device *psc_dev = ti_psc_lookup((ti_psc_idx_t) dev->psc_idx);
+	struct ti_lpsc_module *module;
+
+	if (psc_dev == NULL) {
+		return -ENODEV;
+	}
+
+	module = ti_psc_lookup_lpsc(psc_dev, dev->mod);
+	if (module == NULL) {
+		return -ENODEV;
+	}
+
+	if (module->use_count == UINT8_MAX) {
+		return -ERANGE;
+	}
+
+	module->use_count++;
+	return 0;
+}
+
+int ti_soc_device_pwr_up_ref(struct ti_device *dev)
+{
+	const struct ti_soc_device_data *domains;
+	const struct ti_dev_data *data;
+	uint32_t i;
+	int ret;
+
+	assert(dev != NULL);
+
+	data = ti_get_dev_data(dev);
+
+	if (data->soc.psc_idx == TI_PSC_DEV_MULTIPLE) {
+		domains = soc_psc_multiple_domains[data->soc.mod];
+		for (i = 0U; domains[i].psc_idx != TI_PSC_DEV_NONE; i++) {
+			ret = ti_soc_device_pwr_up_ref_internal(&domains[i]);
+			if (ret != 0) {
+				return ret;
+			}
+		}
+	} else {
+		ret = ti_soc_device_pwr_up_ref_internal(&data->soc);
+		if (ret != 0) {
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
+/**
+ * ti_soc_device_drop_pwr_up_ref_internal() - Decrement PSC module use_count only.
+ * @dev: SoC device data identifying the PSC index and LPSC module.
+ *
+ * Note: Does not trigger PSC state transitions.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+static int ti_soc_device_drop_pwr_up_ref_internal(const struct ti_soc_device_data *dev)
+{
+	struct ti_device *psc_dev = ti_psc_lookup((ti_psc_idx_t) dev->psc_idx);
+	struct ti_lpsc_module *module;
+
+	if (psc_dev == NULL) {
+		return -ENODEV;
+	}
+
+	module = ti_psc_lookup_lpsc(psc_dev, dev->mod);
+	if (module == NULL) {
+		return -ENODEV;
+	}
+
+	if (module->use_count == 0U) {
+		return -ERANGE;
+	}
+
+	module->use_count--;
+	return 0;
+}
+
+int ti_soc_device_drop_pwr_up_ref(struct ti_device *dev)
+{
+	const struct ti_soc_device_data *domains;
+	const struct ti_dev_data *data;
+	uint32_t i;
+	int ret;
+
+	assert(dev != NULL);
+
+	data = ti_get_dev_data(dev);
+
+	if (data->soc.psc_idx == TI_PSC_DEV_MULTIPLE) {
+		domains = soc_psc_multiple_domains[data->soc.mod];
+		for (i = 0U; domains[i].psc_idx != TI_PSC_DEV_NONE; i++) {
+			ret = ti_soc_device_drop_pwr_up_ref_internal(&domains[i]);
+			if (ret != 0) {
+				return ret;
+			}
+		}
+	} else {
+		ret = ti_soc_device_drop_pwr_up_ref_internal(&data->soc);
+		if (ret != 0) {
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
+/**
  * ti_soc_device_enable_internal() - Enable the PSC LPSC module for a single SoC device domain.
  * @dev: SoC device data identifying the PSC index and LPSC module.
  */
