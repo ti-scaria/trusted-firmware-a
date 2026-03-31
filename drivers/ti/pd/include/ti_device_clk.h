@@ -259,6 +259,20 @@ void ti_device_clk_enable(struct ti_device *dev, ti_dev_clk_idx_t clk_idx);
 void ti_device_clk_disable(struct ti_device *dev, ti_dev_clk_idx_t clk_idx);
 
 /**
+ * ti_device_clk_pwr_up_ref() - Increment the power-up reference count for a device clock
+ * @dev: The device ID that the clock is connected to.
+ * @clk_idx: The index of the clock on this device.
+ */
+void ti_device_clk_pwr_up_ref(struct ti_device *dev, ti_dev_clk_idx_t clk_idx);
+
+/**
+ * ti_device_clk_drop_pwr_up_ref() - Decrement the power-up reference count for a device clock
+ * @dev: The device ID that the clock is connected to.
+ * @clk_idx: The index of the clock on this device.
+ */
+void ti_device_clk_drop_pwr_up_ref(struct ti_device *dev, ti_dev_clk_idx_t clk_idx);
+
+/**
  * ti_device_clk_init() - Initialize a device clock
  * @dev: The device ID that the clock is connected to.
  * @clk_idx: The index of the clock on this device.

@@ -432,6 +432,36 @@ void ti_device_clk_disable(struct ti_device *dev, ti_dev_clk_idx_t clk_idx)
 	}
 }
 
+void ti_device_clk_pwr_up_ref(struct ti_device *dev, ti_dev_clk_idx_t clk_idx)
+{
+	struct ti_dev_clk *dev_clkp;
+	struct ti_clk *clkp = NULL;
+
+	dev_clkp = ti_get_dev_clk(dev, clk_idx);
+	if ((dev_clkp != NULL) && (0U == (dev_clkp->flags & TI_DEV_CLK_FLAG_DISABLE))) {
+		clkp = ti_dev_get_clk(dev, clk_idx);
+	}
+
+	if (clkp != NULL) {
+		clkp->ref_count += 1U;
+	}
+}
+
+void ti_device_clk_drop_pwr_up_ref(struct ti_device *dev, ti_dev_clk_idx_t clk_idx)
+{
+	struct ti_dev_clk *dev_clkp;
+	struct ti_clk *clkp = NULL;
+
+	dev_clkp = ti_get_dev_clk(dev, clk_idx);
+	if ((dev_clkp != NULL) && (0U == (dev_clkp->flags & TI_DEV_CLK_FLAG_DISABLE))) {
+		clkp = ti_dev_get_clk(dev, clk_idx);
+	}
+
+	if (clkp != NULL && clkp->ref_count > 0U) {
+		clkp->ref_count -= 1U;
+	}
+}
+
 void ti_device_clk_init(struct ti_device *dev, ti_dev_clk_idx_t clk_idx)
 {
 	struct ti_clk *clkp = NULL;

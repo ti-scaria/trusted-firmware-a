@@ -17,6 +17,8 @@
 
 #include <stdbool.h>
 
+#include <ti_device.h>
+
 /**
  * ti_soc_device_get_state() - Get the current device state (SoC specific impl.)
  * @dev: The device to query.
@@ -143,6 +145,30 @@ static inline void ti_device_set_reset_iso(struct ti_device *dev, bool enable)
 {
 	ti_soc_device_set_reset_iso(dev, enable);
 }
+
+/**
+ * ti_device_id_pwr_up_ref() - Set the power up reference for a device by index.
+ * @idx: The index of the device.
+ */
+void ti_device_id_pwr_up_ref(ti_dev_idx_t idx);
+
+/**
+ * ti_device_id_drop_pwr_up_ref() - Drop the power up reference for a device by index.
+ * @idx: The index of the device.
+ */
+void ti_device_id_drop_pwr_up_ref(ti_dev_idx_t idx);
+
+/**
+ * ti_soc_device_pwr_up_ref() - Get power up reference for all PSC domains associated with a device.
+ * @dev: The device for which to get power up references.
+ */
+void ti_soc_device_pwr_up_ref(struct ti_device *dev);
+
+/**
+ * ti_soc_device_drop_pwr_up_ref() - Drop power up reference for all PSC domains associated with a device.
+ * @dev: The device for which to drop power up references.
+ */
+void ti_soc_device_drop_pwr_up_ref(struct ti_device *dev);
 
 /* Return values for ti_device_get_state() and ti_soc_device_get_state() */
 #define TI_DEVICE_STATE_DISABLED        0U /* Module is off (SwRstDisable) */
