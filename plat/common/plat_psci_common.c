@@ -172,7 +172,12 @@ plat_local_state_t plat_get_target_pwr_state(unsigned int lvl,
 	do {
 		temp = *st;
 		st++;
-		if (temp < target) {
+		/*  The power state of the CPU STANDBY called by fast path in psci_cpu_suspend()
+		 *	remains RUN and the power states are in an increasing order of power saved.
+		 *	Thus the target power state for the CLUSTER is the minimum of the power states
+		 *	requested by all the cores that is not RUN.
+		 */
+		if ((temp < target) && ((temp != PSCI_LOCAL_STATE_RUN) || (lvl != MPIDR_AFFLVL1))){
 			target = temp;
 		}
 		n--;
