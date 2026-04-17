@@ -82,7 +82,6 @@
 
 	timer@2a810000 {
 			frame@2a830000 {
-				/* Formerly GIC_LPI 58, now wire 26 as SPI. */
 				interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>;
 			};
 	};
