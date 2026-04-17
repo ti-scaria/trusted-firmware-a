@@ -40,6 +40,8 @@
 				&CPU7>;
 			arm,iaffids = /bits/ 16 <0 1 2 3 4 5 6 7>;
 
+			dma-noncoherent;
+
 			its@2f120000 {
 				compatible = "arm,gic-v5-its";
 				reg = <0x0 0x2f120000 0x0 0x10000>;    /* NS ITS_CONFIG_FRAME */
