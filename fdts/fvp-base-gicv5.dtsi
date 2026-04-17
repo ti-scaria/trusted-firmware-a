@@ -52,6 +52,8 @@
 
 				ranges;
 
+				dma-noncoherent;
+
 				its0: msi-controller@2f130000 {
 					reg = <0x0 0x2f130000 0x0 0x10000>;  /* ITS_TRANSLATE_FRAME */
 					reg-names = "ns-translate";
