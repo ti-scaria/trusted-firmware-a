@@ -151,10 +151,10 @@
 		msi-map = <0x0 &its0 0x0 0x10000>;
 	};
 	smmu: iommu@2b400000 {
-		interrupts = <GIC_SPI 106 IRQ_TYPE_EDGE_RISING>,
-			     <GIC_SPI 111 IRQ_TYPE_EDGE_RISING>,
-			     <GIC_SPI 107 IRQ_TYPE_EDGE_RISING>,
-			     <GIC_SPI 109 IRQ_TYPE_EDGE_RISING>;
+		interrupts = <GIC_SPI 74 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 79 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 75 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 77 IRQ_TYPE_EDGE_RISING>;
 		msi-parent = <&its0 0x10000>;
 	};
 #endif /* ENABLE_RMM */
