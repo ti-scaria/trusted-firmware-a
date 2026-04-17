@@ -144,10 +144,10 @@
 
 #if (ENABLE_RMM == 1)
 	pci: pci@40000000 {
-		interrupt-map = <0 0 0 1 &gic 0 GIC_SPI 200 IRQ_TYPE_LEVEL_HIGH>,
-				<0 0 0 2 &gic 0 GIC_SPI 201 IRQ_TYPE_LEVEL_HIGH>,
-				<0 0 0 3 &gic 0 GIC_SPI 202 IRQ_TYPE_LEVEL_HIGH>,
-				<0 0 0 4 &gic 0 GIC_SPI 203 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-map = <0 0 0 1 &gic 0 0 GIC_SPI 168 IRQ_TYPE_LEVEL_HIGH>,
+				<0 0 0 2 &gic 0 0 GIC_SPI 169 IRQ_TYPE_LEVEL_HIGH>,
+				<0 0 0 3 &gic 0 0 GIC_SPI 170 IRQ_TYPE_LEVEL_HIGH>,
+				<0 0 0 4 &gic 0 0 GIC_SPI 171 IRQ_TYPE_LEVEL_HIGH>;
 		msi-map = <0x0 &its0 0x0 0x10000>;
 	};
 	smmu: iommu@2b400000 {
