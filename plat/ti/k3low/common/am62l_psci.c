@@ -227,7 +227,7 @@ static void am62l_pwr_down_domain(const psci_power_state_t *target_state)
 		VERBOSE("%s: A53 CORE: %d OFF\n", __func__, core);
 		set_main_psc_state(PD_MPU_CLST_CORE_0 + core, LPSC_MAIN_MPU_CLST_CORE_0 + core,
 				   PSC_PD_OFF, PSC_SYNCRESETDISABLE);
-		ti_device_id_drop_power_up_ref(AM62LX_DEV_COMPUTE_CLUSTER0);
+		ti_device_id_drop_power_up_ref(AM62LX_DEV_A53_0 + core);
 	}
 }
 

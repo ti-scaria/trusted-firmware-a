@@ -162,6 +162,95 @@ uint32_t ti_soc_device_get_context_loss_count(struct ti_device *dev)
 }
 
 /**
+ * ti_soc_device_pwr_up_ref_internal() - Get power up reference for a single SoC device domain.
+ * @dev: SoC device data identifying the PSC index and LPSC module.
+ */
+static void ti_soc_device_pwr_up_ref_internal(const struct ti_soc_device_data *dev)
+{
+	struct ti_device *psc_dev = ti_psc_lookup((ti_psc_idx_t) dev->psc_idx);
+	struct ti_lpsc_module *module;
+
+	if (psc_dev == NULL) {
+		return;
+	}
+
+	module = ti_psc_lookup_lpsc(psc_dev, dev->mod);
+	if (module == NULL) {
+		return;
+	}
+
+	module->use_count++;
+}
+
+/**
+ * ti_soc_device_pwr_up_ref() - Get power up reference for all PSC domains associated with a device.
+ * @dev: The device for which to get power up references.
+ */
+void ti_soc_device_pwr_up_ref(struct ti_device *dev)
+{
+	const struct ti_soc_device_data *domains;
+	const struct ti_dev_data *data;
+	uint32_t i;
+
+	assert(dev != NULL);
+
+	data = ti_get_dev_data(dev);
+
+	if (data->soc.psc_idx == TI_PSC_DEV_MULTIPLE) {
+		domains = soc_psc_multiple_domains[data->soc.mod];
+		for (i = 0U; domains[i].psc_idx != TI_PSC_DEV_NONE; i++) {
+			ti_soc_device_pwr_up_ref_internal(&domains[i]);
+		}
+	} else {
+		ti_soc_device_pwr_up_ref_internal(&data->soc);
+	}
+}
+
+/**
+ * ti_soc_device_drop_pwr_up_ref_internal() - Drop power up reference for a single SoC device domain.
+ * @dev: SoC device data identifying the PSC index and LPSC module.
+ */
+static void ti_soc_device_drop_pwr_up_ref_internal(const struct ti_soc_device_data *dev)
+{	struct ti_device *psc_dev = ti_psc_lookup((ti_psc_idx_t) dev->psc_idx);
+	struct ti_lpsc_module *module;
+
+	if (psc_dev == NULL) {
+		return;
+	}
+
+	module = ti_psc_lookup_lpsc(psc_dev, dev->mod);
+	if (module == NULL) {
+		return;
+	}
+
+	module->use_count--;
+}
+
+/**
+ * ti_soc_device_drop_pwr_up_ref() - Drop power up reference for all PSC domains associated with a device.
+ * @dev: The device for which to drop power up references.
+ */
+void ti_soc_device_drop_pwr_up_ref(struct ti_device *dev)
+{
+	const struct ti_soc_device_data *domains;
+	const struct ti_dev_data *data;
+	uint32_t i;
+
+	assert(dev != NULL);
+
+	data = ti_get_dev_data(dev);
+
+	if (data->soc.psc_idx == TI_PSC_DEV_MULTIPLE) {
+		domains = soc_psc_multiple_domains[data->soc.mod];
+		for (i = 0U; domains[i].psc_idx != TI_PSC_DEV_NONE; i++) {
+			ti_soc_device_drop_pwr_up_ref_internal(&domains[i]);
+		}
+	} else {
+		ti_soc_device_drop_pwr_up_ref_internal(&data->soc);
+	}
+}
+
+/**
  * ti_soc_device_enable_internal() - Enable the PSC LPSC module for a single SoC device domain.
  * @dev: SoC device data identifying the PSC index and LPSC module.
  */
