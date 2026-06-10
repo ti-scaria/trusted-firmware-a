@@ -112,11 +112,12 @@ void ti_device_set_state(struct ti_device *device_ptr, uint8_t host_idx, bool en
 	}
 }
 
-void ti_device_id_pwr_up_ref(ti_dev_idx_t idx)
+int ti_device_id_pwr_up_ref(ti_dev_idx_t idx)
 {
 	struct ti_device *dev;
 	const struct ti_dev_data *data;
 	int32_t i;
+	int ret;
 
 	assert(idx < soc_device_count);
 
@@ -130,14 +131,21 @@ void ti_device_id_pwr_up_ref(ti_dev_idx_t idx)
 		ti_device_clk_enable(dev, i);
 	}
 
-	ti_soc_device_pwr_up_ref(dev);
+	ret = ti_soc_device_pwr_up_ref(dev);
+	if (ret != 0) {
+		ERROR("Failed to increment power up reference for device idx=%u: %d\n", idx, ret);
+		return ret;
+	}
+
+	return 0;
 }
 
-void ti_device_id_drop_pwr_up_ref(ti_dev_idx_t idx)
+int ti_device_id_drop_pwr_up_ref(ti_dev_idx_t idx)
 {
 	struct ti_device *dev;
 	const struct ti_dev_data *data;
 	int32_t i;
+	int ret;
 
 	assert(idx < soc_device_count);
 
@@ -151,7 +159,13 @@ void ti_device_id_drop_pwr_up_ref(ti_dev_idx_t idx)
 		ti_device_clk_disable(dev, (uint16_t) i);
 	}
 
-	ti_soc_device_drop_pwr_up_ref(dev);
+	ret = ti_soc_device_drop_pwr_up_ref(dev);
+	if (ret != 0) {
+		ERROR("Failed to drop power up reference for device idx=%u: %d\n", idx, ret);
+		return ret;
+	}
+
+	return 0;
 }
 
 /**
