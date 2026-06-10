@@ -195,7 +195,12 @@ static int am62l_pwr_domain_on(u_register_t mpidr)
 		return PSCI_E_INTERN_FAIL;
 	}
 
-	ti_device_id_pwr_up_ref(AM62LX_DEV_A53_0 + core);
+	ret = ti_device_id_pwr_up_ref(AM62LX_DEV_A53_0 + core);
+	if (ret != 0) {
+		ERROR("Failed to increment power up reference for core %d: %d\n", core, ret);
+		return PSCI_E_INTERN_FAIL;
+	}
+
 	set_main_psc_state(PD_MPU_CLST_CORE_0 + core, LPSC_MAIN_MPU_CLST_CORE_0 + core,
 			   PSC_PD_ON, PSC_ENABLE);
 
@@ -236,7 +241,13 @@ static int am62l_pwr_domain_off_early(const psci_power_state_t *target_state)
 	 * This ensures that the system state is updated correctly.
 	 */
 	int core = plat_my_core_pos();
-	ti_device_id_drop_pwr_up_ref(AM62LX_DEV_A53_0 + core);
+	int ret;
+
+	ret = ti_device_id_drop_pwr_up_ref(AM62LX_DEV_A53_0 + core);
+	if (ret != 0) {
+		ERROR("Failed to drop power up reference for core %d: %d\n", core, ret);
+		return PSCI_E_DENIED;
+	}
 
 	return PSCI_E_SUCCESS;
 }
