@@ -163,7 +163,7 @@ uint32_t ti_soc_device_get_context_loss_count(struct ti_device *dev)
 
 /**
  * ti_soc_device_pwr_up_ref_internal() - Increment PSC module use_count only.
- * @dev: SoC device data identifying the PSC index and LPSC module.
+ * @dev: SoC device identifying the PSC index and LPSC module.
  *
  * Note: Does not trigger PSC state transitions.
  */
@@ -182,6 +182,7 @@ static void ti_soc_device_pwr_up_ref_internal(const struct ti_soc_device_data *d
 	}
 
 	module->use_count++;
+	ti_pd_pwr_up_ref(psc_dev, module);
 }
 
 void ti_soc_device_pwr_up_ref(struct ti_device *dev)
@@ -206,7 +207,7 @@ void ti_soc_device_pwr_up_ref(struct ti_device *dev)
 
 /**
  * ti_soc_device_drop_pwr_up_ref_internal() - Decrement PSC module use_count only.
- * @dev: SoC device data identifying the PSC index and LPSC module.
+ * @dev: SoC device identifying the PSC index and LPSC module.
  *
  * Note: Does not trigger PSC state transitions.
  */
@@ -226,6 +227,7 @@ static void ti_soc_device_drop_pwr_up_ref_internal(const struct ti_soc_device_da
 
 	if (module->use_count > 0U) {
 		module->use_count--;
+		ti_pd_drop_pwr_up_ref(dev, module);
 	}
 }
 
@@ -251,7 +253,7 @@ void ti_soc_device_drop_pwr_up_ref(struct ti_device *dev)
 
 /**
  * ti_soc_device_enable_internal() - Enable the PSC LPSC module for a single SoC device domain.
- * @dev: SoC device data identifying the PSC index and LPSC module.
+ * @dev: SoC device identifying the PSC index and LPSC module.
  */
 static void ti_soc_device_enable_internal(const struct ti_soc_device_data *dev)
 {
@@ -268,6 +270,54 @@ static void ti_soc_device_enable_internal(const struct ti_soc_device_data *dev)
 	}
 
 	ti_lpsc_module_get(psc_dev, module);
+}
+
+/**
+ * ti_pd_drop_pwr_up_ref() - Drop power up reference for a PSC power domain.
+ * @dev: SoC device identifying the PSC index and LPSC module.
+ * @module: The LPSC module whose power domain reference is to be dropped.
+ *
+ * Note: Does not trigger PSC state transitions.
+ */
+static void ti_pd_drop_pwr_up_ref(struct ti_device *dev, struct ti_lpsc_module *module)
+{
+	const struct ti_psc_drv_data *psc = ti_to_psc_drv_data(ti_get_drv_data(dev));
+	uint32_t idx = ti_lpsc_module_idx(dev, module);
+	const struct ti_lpsc_module_data *data = &psc->mod_data[idx];
+	struct ti_psc_pd *pd = psc_idx2pd(psc, (ti_pd_idx_t) data->powerdomain);
+
+	if ( --pd->use_count != 0U) {
+		return;
+	}
+
+	if ((psc->pd_data[idx].flags & TI_PSC_PD_DEPENDS) != 0U) {
+		ti_pd_drop_pwr_up_ref(dev, psc_idx2pd(psc,
+					      (ti_pd_idx_t) psc->pd_data[idx].depends));
+	}
+}
+
+/**
+ * ti_pd_pwr_up_ref() - Get power up reference for a PSC power domain.
+ * @dev: SoC device identifying the PSC index and LPSC module.
+ * @module: The LPSC module whose power domain reference is to be incremented.
+ *
+ * Note: Does not trigger PSC state transitions.
+ */
+static void ti_pd_pwr_up_ref(struct ti_device *dev, struct ti_lpsc_module *module)
+{
+	const struct ti_psc_drv_data *psc = ti_to_psc_drv_data(ti_get_drv_data(dev));
+	uint32_t idx = ti_lpsc_module_idx(dev, module);
+	const struct ti_lpsc_module_data *data = &psc->mod_data[idx];
+	struct ti_psc_pd *pd = psc_idx2pd(psc, (ti_pd_idx_t) data->powerdomain);
+
+	if (pd->use_count++ != 0U) {
+		return;
+	}
+
+	if ((psc->pd_data[idx].flags & TI_PSC_PD_DEPENDS) != 0U) {
+		ti_pd_pwr_up_ref(dev, psc_idx2pd(psc,
+					    (ti_pd_idx_t) psc->pd_data[idx].depends));
+	}
 }
 
 void ti_soc_device_enable(struct ti_device *dev)
