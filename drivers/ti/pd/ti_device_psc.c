@@ -173,6 +173,7 @@ static int ti_soc_device_pwr_up_ref_internal(const struct ti_soc_device_data *de
 {
 	struct ti_device *psc_dev = ti_psc_lookup((ti_psc_idx_t) dev->psc_idx);
 	struct ti_lpsc_module *module;
+	int ret;
 
 	if (psc_dev == NULL) {
 		return -ENODEV;
@@ -183,11 +184,11 @@ static int ti_soc_device_pwr_up_ref_internal(const struct ti_soc_device_data *de
 		return -ENODEV;
 	}
 
-	if (module->use_count == UINT8_MAX) {
-		return -ERANGE;
+	ret = ti_lpsc_module_pwr_up_ref(psc_dev, module);
+	if (ret != 0) {
+		return ret;
 	}
 
-	module->use_count++;
 	return 0;
 }
 
@@ -232,6 +233,7 @@ static int ti_soc_device_drop_pwr_up_ref_internal(const struct ti_soc_device_dat
 {
 	struct ti_device *psc_dev = ti_psc_lookup((ti_psc_idx_t) dev->psc_idx);
 	struct ti_lpsc_module *module;
+	int ret;
 
 	if (psc_dev == NULL) {
 		return -ENODEV;
@@ -242,11 +244,11 @@ static int ti_soc_device_drop_pwr_up_ref_internal(const struct ti_soc_device_dat
 		return -ENODEV;
 	}
 
-	if (module->use_count == 0U) {
-		return -ERANGE;
+	ret = ti_lpsc_module_drop_pwr_up_ref(psc_dev, module);
+	if (ret != 0) {
+		return ret;
 	}
 
-	module->use_count--;
 	return 0;
 }
 

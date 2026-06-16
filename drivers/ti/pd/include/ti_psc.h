@@ -553,6 +553,30 @@ struct ti_lpsc_module *ti_psc_lookup_lpsc(struct ti_device *psc_dev, ti_lpsc_idx
  */
 void ti_psc_drop_pwr_up_ref(void);
 
+/**
+ * ti_lpsc_module_pwr_up_ref() - Increment LPSC module active reference count
+ * @psc_dev: The PSC device that controls this module.
+ * @module: Pointer to the LPSC module to enable.
+ *
+ * Increments the use_count for the module. Also handles power domain and
+ * dependency modules recursively.
+ *
+ * Returns 0 on success, or a negative error code on failure.
+ */
+int ti_lpsc_module_pwr_up_ref(struct ti_device *psc_dev, struct ti_lpsc_module *module);
+
+/**
+ * ti_lpsc_module_drop_pwr_up_ref() - Decrement LPSC module active reference count
+ * @psc_dev: The PSC device that controls this module.
+ * @module: Pointer to the LPSC module to disable.
+ *
+ * Decrements the use_count for the module. Also handles power domain and
+ * dependency modules recursively.
+ *
+ * Returns 0 on success, or a negative error code on failure.
+ */
+int ti_lpsc_module_drop_pwr_up_ref(struct ti_device *psc_dev, struct ti_lpsc_module *module);
+
 /*
  * PSC device dynamic runtime data
  *

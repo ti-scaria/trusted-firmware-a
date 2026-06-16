@@ -306,7 +306,10 @@ bool ti_clk_get(struct ti_clk *clkp)
 	}
 
 	if (ret) {
-		(void)__atomic_fetch_add(&clkp->ref_count, 1U, __ATOMIC_ACQ_REL);
+		if(flag)
+			(void)__atomic_fetch_add(&clkp->ref_count, 1U, __ATOMIC_ACQ_REL);
+		else
+			clkp->ref_count++;
 	}
 
 	return ret;

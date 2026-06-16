@@ -858,6 +858,207 @@ static void psc_pd_drop_pwr_up_ref(struct ti_device *dev)
 	}
 }
 
+/**
+ * ti_psc_pd_pwr_up_ref() - Increment power up reference count for a power domain
+ * @dev: The device for this PSC.
+ * @pd: The power domain to increment the reference count on.
+ *
+ * This function increments the power up reference count for a given power domain.
+ * It also handles any dependencies for the power domain.
+ *
+ * Returns 0 on success, or -ERANGE if the reference count would overflow.
+ */
+
+static int ti_psc_pd_pwr_up_ref(struct ti_device *dev, struct ti_psc_pd *pd)
+{
+	const struct ti_psc_drv_data *psc = ti_to_psc_drv_data(ti_get_drv_data(dev));
+	uint32_t idx = ti_psc_pd_idx(dev, pd);
+
+	ERROR("PD_PWR_UP_REF: psc_id=%d pd_id=%d use_count=%d\n",
+		psc->psc_idx, idx, pd->use_count);
+
+	if (pd->use_count == UINT8_MAX) {
+		return -ERANGE;
+	}
+
+	if (pd->use_count++ != 0) {
+		return 0;
+	}
+
+	if ((psc->pd_data[idx].flags & TI_PSC_PD_ALWAYSON) != 0U) {
+		return 0;
+	}
+
+	if ((psc->pd_data[idx].flags & TI_PSC_PD_DEPENDS) != 0U) {
+		int ret = ti_psc_pd_pwr_up_ref(dev, psc_idx2pd(psc,
+						      (ti_pd_idx_t) psc->pd_data[idx].depends));
+		if (ret != 0) {
+			pd->use_count--;
+			return ret;
+		}
+	}
+
+	psc_pd_clk_get(&psc->pd_data[idx]);
+	psc->data->pds_enabled |= (uint32_t) BIT(idx);
+
+	return 0;
+}
+
+/**
+ * ti_psc_pd_drop_pwr_up_ref() - Decrement power up reference count for a power domain
+ * @dev: The device for this PSC.
+ * @pd: The power domain to decrement the reference count on.
+ *
+ * This function decrements the power up reference count for a given power domain.
+ * It also handles any dependencies for the power domain.
+ *
+ * Returns 0 on success, or -ERANGE if the reference count would underflow.
+ */
+static int ti_psc_pd_drop_pwr_up_ref(struct ti_device *dev, struct ti_psc_pd *pd)
+{
+	const struct ti_psc_drv_data *psc = ti_to_psc_drv_data(ti_get_drv_data(dev));
+	uint32_t idx = ti_psc_pd_idx(dev, pd);
+
+	ERROR("PD_DROP_PWR_UP_REF: psc_id=%d pd_id=%d use_count=%d\n",
+		psc->psc_idx, idx, pd->use_count);
+
+	if (pd->use_count == 0U) {
+		return -ERANGE;
+	}
+
+	if (--pd->use_count != 0U) {
+		return 0;
+	}
+
+	if ((psc->pd_data[idx].flags & TI_PSC_PD_ALWAYSON) != 0U) {
+		return 0;
+	}
+
+	if ((psc->pd_data[idx].flags & TI_PSC_PD_DEPENDS) != 0U) {
+		int ret = ti_psc_pd_drop_pwr_up_ref(dev, psc_idx2pd(psc,
+						      (ti_pd_idx_t) psc->pd_data[idx].depends));
+		if (ret != 0) {
+			pd->use_count++;
+			return ret;
+		}
+	}
+
+	psc_pd_clk_put(&psc->pd_data[idx]);
+	psc->data->pds_enabled &= ~((uint32_t) BIT(idx));
+
+	return 0;
+}
+
+int ti_lpsc_module_pwr_up_ref(struct ti_device *dev, struct ti_lpsc_module *module)
+{
+	const struct ti_psc_drv_data *psc = ti_to_psc_drv_data(ti_get_drv_data(dev));
+	uint32_t idx = ti_lpsc_module_idx(dev, module);
+	const struct ti_lpsc_module_data *data = &psc->mod_data[idx];
+	struct ti_psc_pd *pd = psc_idx2pd(psc, (ti_pd_idx_t) data->powerdomain);
+	int ret;
+
+	ERROR("MODULE_PWR_UP_REF: psc_id=%d lpsc_id=%d use_count=%d\n",
+		psc->psc_idx, idx, module->use_count);
+
+	if (module->use_count == UINT8_MAX) {
+		return -ERANGE;
+	}
+
+	if (module->use_count++ != 0){
+		return 0;
+	}
+
+	ret = ti_psc_pd_pwr_up_ref(dev, pd);
+	if (ret != 0) {
+		return ret;
+	}
+
+	/* Make sure our parent LPSC refcount is incremented */
+	if ((data->flags & TI_LPSC_DEPENDS) != 0UL) {
+		const struct ti_psc_drv_data *depends_psc = psc;
+		struct ti_device *depends_dev = dev;
+
+		if (data->depends_psc_idx != psc->psc_idx) {
+			depends_dev = ti_psc_lookup((ti_psc_idx_t) data->depends_psc_idx);
+			depends_psc = ti_to_psc_drv_data(ti_get_drv_data(depends_dev));
+		}
+		if (depends_dev == NULL) {
+			VERBOSE("ACTION FAIL: PSC_INVALID_DEP_DATA dep_pd_id=%d pd_id=%d pos=1\n",
+				psc->psc_idx, data->depends_psc_idx);
+		} else {
+			/*
+			 * Moving from a clock stop state to a clock enabled
+			 * state, bump the reference count on our dependency.
+			 */
+			ret = ti_lpsc_module_pwr_up_ref(depends_dev,
+							     psc_idx2mod(depends_psc, data->depends));
+			if (ret != 0) {
+				module->use_count--;
+				return ret;
+			}
+		}
+	}
+
+	lpsc_module_clk_get(dev,module);
+
+	return 0;
+}
+
+int ti_lpsc_module_drop_pwr_up_ref(struct ti_device *dev, struct ti_lpsc_module *module)
+{
+	const struct ti_psc_drv_data *psc = ti_to_psc_drv_data(ti_get_drv_data(dev));
+	uint32_t idx = ti_lpsc_module_idx(dev, module);
+	const struct ti_lpsc_module_data *data = &psc->mod_data[idx];
+	struct ti_psc_pd *pd = psc_idx2pd(psc, (ti_pd_idx_t) data->powerdomain);
+	int ret;
+
+	ERROR("MODULE_DROP_PWR_UP_REF: psc_id=%d lpsc_id=%d use_count=%d\n",
+		psc->psc_idx, idx, module->use_count);
+
+	if (module->use_count == 0U) {
+		return -ERANGE;
+	}
+
+	if (--module->use_count != 0){
+		return 0;
+	}
+
+	ret = ti_psc_pd_drop_pwr_up_ref(dev, pd);
+	if (ret != 0){
+		return ret;
+	}
+
+	/* Make sure our parent LPSC refcount is decremented */
+	if ((data->flags & TI_LPSC_DEPENDS) != 0UL) {
+		const struct ti_psc_drv_data *depends_psc = psc;
+		struct ti_device *depends_dev = dev;
+
+		if (data->depends_psc_idx != psc->psc_idx) {
+			depends_dev = ti_psc_lookup((ti_psc_idx_t) data->depends_psc_idx);
+			depends_psc = ti_to_psc_drv_data(ti_get_drv_data(depends_dev));
+		}
+		if (depends_dev == NULL) {
+			VERBOSE("ACTION FAIL: PSC_INVALID_DEP_DATA dep_pd_id=%d pd_id=%d pos=2\n",
+				psc->psc_idx, data->depends_psc_idx);
+		} else {
+			/*
+			 * Moving from a clock enabled state to a clock stop
+			 * state, drop the reference count on our dependency.
+			 */
+			ret = ti_lpsc_module_drop_pwr_up_ref(depends_dev,
+								   psc_idx2mod(depends_psc, data->depends));
+			if (ret != 0) {
+				module->use_count++;
+				return ret;
+			}
+		}
+	}
+
+	lpsc_module_clk_put(dev, module, false);
+
+	return 0;
+}
+
 struct ti_device *ti_psc_lookup(ti_psc_idx_t id)
 {
 	struct ti_device *dev;
