@@ -3098,7 +3098,7 @@ struct ti_clk soc_clocks[] = {
 			1,
 		},
 		.ref_count = 0,
-		.flags = 0,
+		.flags = TI_CLK_FLAG_NO_ATOMIC,
 		.drv = &ti_clk_drv_div_pll_16fft_hsdiv.drv,
 		.data_flags = TI_CLK_DATA_FLAG_MODIFY_PARENT_FREQ | TI_CLK_DATA_FLAG_NO_HW_REINIT,
 		.type = TI_CLK_TYPE_DIV,
@@ -3599,7 +3599,7 @@ struct ti_clk soc_clocks[] = {
 		},
 	},
 	[CLK_AM62LX_RESERVED] = {
-		.flags = 0,
+		.flags = TI_CLK_FLAG_NO_ATOMIC,
 		.drv = &ti_clk_drv_fixed,
 		.range_idx = AM62LX_FREQ_RANGE_ANY,
 	},
