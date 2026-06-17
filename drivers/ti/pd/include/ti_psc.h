@@ -60,6 +60,16 @@
 #define TI_PSC_PD_DEPENDS		BIT(2)
 
 /*
+ * Flag indicating to skip waiting for power domain transitions
+ *
+ * Set in ti_psc_pd_data.flags to indicate that ti_psc_pd_wait() should
+ * return immediately without polling hardware status. This is used for
+ * A53 cores where the transition only completes when cores enter WFI,
+ * preventing deadlock from waiting.
+ */
+#define TI_PSC_PD_SKIP_WAIT		BIT(3)
+
+/*
  * PSC power domain constant data
  *
  * This structure contains the constant configuration data for a PSC power
