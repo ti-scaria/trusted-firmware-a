@@ -25,6 +25,9 @@
 #include <ti_clk_mux.h>
 #include <ti_device.h>
 
+/* Maximum number of tries for LPM clock suspend/resume operations */
+#define LPM_CLK_MAX_TRIES		10U
+
 uint32_t ti_clk_value_set_freq(struct ti_clk *clkp, uint32_t target_hz,
 			       uint32_t min_hz,
 			       uint32_t max_hz,
@@ -392,6 +395,173 @@ void ti_clk_drop_pwr_up_en(void)
 						 __ATOMIC_ACQ_REL);
 		}
 	}
+}
+
+/*
+ * ti_clk_suspend_save() - Save clock state during suspend
+ *
+ * Calls the clock driver's suspend_save handler to save the clock's current
+ * state before entering low power mode. Marks the clock as suspended to avoid
+ * duplicate operations.
+ *
+ * @clkp: Clock to save state for
+ *
+ * Return: 0 on success, error code otherwise
+ */
+static int32_t ti_clk_suspend_save(struct ti_clk *clkp)
+{
+	int32_t ret = 0;
+
+	assert(clkp != NULL);
+
+	if ((clkp->flags & TI_CLK_FLAG_SUSPENDED) == 0U) {
+		if ((clkp->drv != NULL) && (clkp->drv->suspend_save != NULL)) {
+			ret = clkp->drv->suspend_save(clkp);
+			if (ret == 0) {
+				/* Mark clock as suspended to avoid duplicate operations */
+				clkp->flags |= TI_CLK_FLAG_SUSPENDED;
+			}
+		} else {
+			/* Mark clock as suspended if no handler is provided */
+			clkp->flags |= TI_CLK_FLAG_SUSPENDED;
+			ret = 0;
+		}
+	}
+
+	return ret;
+}
+
+/*
+ * ti_clk_resume_restore() - Restore clock state during resume
+ *
+ * Calls the clock driver's resume_restore handler to restore the clock's
+ * state after exiting low power mode. Ensures parent clocks are restored
+ * first before restoring child clocks. Clears the suspended flag after
+ * successful restoration.
+ *
+ * @clkp: Clock to restore state for
+ *
+ * Return: 0 on success, -EINVAL if parent not yet restored, error code otherwise
+ */
+static int32_t ti_clk_resume_restore(struct ti_clk *clkp)
+{
+	const struct ti_clk_parent *p = NULL;
+	struct ti_clk *parent_clk = NULL;
+	int32_t ret = 0;
+
+	assert(clkp != NULL);
+
+	p = ti_clk_mux_get_parent(clkp);
+	if (p != NULL) {
+		parent_clk = ti_clk_lookup((ti_clk_idx_t)p->clk);
+	}
+
+	if (parent_clk != NULL) {
+		/* If parent is still suspended, defer until it has resumed */
+		if ((parent_clk->flags & TI_CLK_FLAG_SUSPENDED) == TI_CLK_FLAG_SUSPENDED) {
+			ret = -EINVAL;
+		}
+	}
+
+	if ((ret != -EINVAL) &&
+	    ((clkp->flags & TI_CLK_FLAG_SUSPENDED) == TI_CLK_FLAG_SUSPENDED)) {
+		if ((clkp->drv != NULL) && (clkp->drv->resume_restore != NULL)) {
+			ret = clkp->drv->resume_restore(clkp);
+			if (ret == 0) {
+				/* Clear suspended flag to avoid duplicate operations */
+				clkp->flags &= ~TI_CLK_FLAG_SUSPENDED;
+			}
+		} else {
+			/* Mark clock as resumed if no handler is provided */
+			clkp->flags &= ~TI_CLK_FLAG_SUSPENDED;
+			ret = 0;
+		}
+	}
+
+	return ret;
+}
+
+int32_t ti_clks_suspend(void)
+{
+	ti_clk_idx_t i;
+	int32_t ret = 0;
+	uint8_t max_tries = LPM_CLK_MAX_TRIES;
+	bool done;
+	bool error;
+	struct ti_clk *clkp;
+
+	do {
+		done = true;
+		error = false;
+
+		for (i = 1U; i < soc_clock_count; i++) {
+			clkp = &soc_clocks[i];
+
+			ret = ti_clk_suspend_save(clkp);
+			if (ret == -EINVAL) {
+				done = false;
+			} else if (ret != 0) {
+				error = true;
+			} else {
+				/* Success - continue */
+			}
+		}
+
+		/* Avoid getting stuck forever, bound the number of loops */
+		max_tries--;
+	} while ((!done) && (!error) && (max_tries != 0U));
+
+	if (max_tries == 0U) {
+		ret = -ETIMEDOUT;
+	} else if (error) {
+		/* ret holds the last non-zero, non-EINVAL error from a handler */
+	} else {
+		ret = 0;
+	}
+
+	return ret;
+}
+
+int32_t ti_clks_resume(void)
+{
+	ti_clk_idx_t i;
+	int32_t ret = 0;
+	uint8_t max_tries = LPM_CLK_MAX_TRIES;
+	bool done;
+	bool error;
+	struct ti_clk *clkp;
+
+	do {
+		done = true;
+		error = false;
+
+		for (i = 1U; i < soc_clock_count; i++) {
+			clkp = &soc_clocks[i];
+
+			ret = ti_clk_resume_restore(clkp);
+
+			if (ret == -EINVAL) {
+				done = false;
+			} else if (ret != 0) {
+				error = true;
+			} else {
+				/* Success - continue */
+			}
+		}
+
+		/* Avoid getting stuck forever, bound the number of loops */
+		max_tries--;
+	} while ((!done) && (!error) && (max_tries != 0U));
+
+	if (max_tries == 0U) {
+		ret = -ETIMEDOUT;
+	} else if (error) {
+		/* ret holds the last non-zero, non-EINVAL error from a handler */
+	} else {
+		ret = 0;
+	}
+
+	return ret;
 }
 
 int32_t ti_clk_init(void)

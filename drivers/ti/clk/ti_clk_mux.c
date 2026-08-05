@@ -15,6 +15,7 @@
  */
 
 #include <assert.h>
+#include <errno.h>
 
 #include <common/debug.h>
 #include <lib/mmio.h>
@@ -100,6 +101,34 @@ static bool ti_clk_mux_set_parent_internal(struct ti_clk *clkp, uint8_t new_pare
 	return true;
 }
 
+/*
+ * Save the current mux parent index before entering low power mode
+ * so it can be restored during resume.
+ */
+static int32_t ti_clk_mux_suspend_save(struct ti_clk *clkp)
+{
+	clkp->saved_val = ti_clk_mux_get_parent_value(clkp);
+
+	return 0;
+}
+
+/*
+ * Restore the saved mux parent index after exiting low power mode.
+ * Returns -EINVAL if the parent selection is rejected by the hardware.
+ */
+static int32_t ti_clk_mux_resume_restore(struct ti_clk *clkp)
+{
+	bool error;
+	int32_t ret = 0;
+
+	error = ti_clk_mux_set_parent_internal(clkp, (uint8_t)(clkp->saved_val));
+	if (error == false) {
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+
 const struct ti_clk_drv_mux ti_clk_drv_mux_reg_ro = {
 	.get_parent = ti_clk_mux_get_parent_internal,
 };
@@ -107,6 +136,10 @@ const struct ti_clk_drv_mux ti_clk_drv_mux_reg_ro = {
 const struct ti_clk_drv_mux ti_clk_drv_mux_reg = {
 	.set_parent = ti_clk_mux_set_parent_internal,
 	.get_parent = ti_clk_mux_get_parent_internal,
+	.drv			= {
+		.suspend_save	= ti_clk_mux_suspend_save,
+		.resume_restore = ti_clk_mux_resume_restore,
+	},
 };
 
 const struct ti_clk_parent *ti_clk_mux_get_parent(struct ti_clk *clkp)

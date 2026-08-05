@@ -76,6 +76,12 @@ static inline uint32_t ti_mask_cover_for_number(uint32_t number)
  */
 #define TI_CLK_FLAG_CACHED				((uint8_t) BIT(3))
 
+/*
+ * Clock has suspend handler called but not resume handler
+ * Used during low power mode suspend/resume operations to track clock state.
+ */
+#define TI_CLK_FLAG_SUSPENDED			((uint8_t) BIT(4))
+
 /* Clock hardware is disabled */
 #define TI_CLK_HW_STATE_DISABLED	0U
 
@@ -136,6 +142,8 @@ struct ti_clk {
 	uint8_t ref_count;
 	/* Runtime flags (TI_CLK_FLAG_*) */
 	uint8_t flags;
+	/* Variable to save the clock value during low power mode */
+	uint32_t saved_val;
 
 	/* Configuration - set at initialization, read-only afterwards */
 	/* Clock driver operations */
@@ -182,6 +190,28 @@ struct ti_clk_drv {
 	 * Return the frequency this clock runs at.
 	 */
 	uint32_t (*get_freq)(struct ti_clk *clkp);
+
+	/*
+	 * Suspend and save clock context during suspend path.
+	 *
+	 * Called during system suspend to save clock state before entering
+	 * low power mode. The clock driver should save any necessary state
+	 * that cannot be restored automatically on resume.
+	 *
+	 * Return: 0 on success, error code otherwise
+	 */
+	int32_t (*suspend_save)(struct ti_clk *clkp);
+
+	/*
+	 * Resume and restore clock context during resume path.
+	 *
+	 * Called during system resume to restore clock state after exiting
+	 * low power mode. The clock driver should restore any state that
+	 * was saved during suspend_save().
+	 *
+	 * Return: 0 on success, error code otherwise
+	 */
+	int32_t (*resume_restore)(struct ti_clk *clkp);
 
 };
 
@@ -339,6 +369,30 @@ void ti_clk_put(struct ti_clk *clkp);
  *         or other negative error code on failure
  */
 int32_t ti_clk_init(void);
+
+/*
+ * Save state for all clocks before entering low power mode.
+ *
+ * Makes multiple passes over the clock table to handle parent-before-child
+ * ordering; a clock defers (returns -EINVAL) if its parent has not yet been
+ * saved. Bounded by LPM_CLK_MAX_TRIES passes to prevent infinite loops.
+ *
+ * Return 0 on success, -ETIMEDOUT if the bound is exceeded, or the error
+ * code from the failing clock's suspend_save handler.
+ */
+int32_t ti_clks_suspend(void);
+
+/*
+ * Restore state for all clocks after exiting low power mode.
+ *
+ * Makes multiple passes over the clock table to handle parent-before-child
+ * ordering; a clock defers (returns -EINVAL) if its parent has not yet been
+ * restored. Bounded by LPM_CLK_MAX_TRIES passes to prevent infinite loops.
+ *
+ * Return 0 on success, -ETIMEDOUT if the bound is exceeded, or the error
+ * code from the failing clock's resume_restore handler.
+ */
+int32_t ti_clks_resume(void);
 
 /**
  * ti_clk_drop_pwr_up_en() - Clears power-up enable flag on all clocks
