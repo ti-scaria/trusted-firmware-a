@@ -28,6 +28,8 @@
 #include <platform_def.h>
 #include <ti_devices.h>
 
+#define PMCTRL_SYS					(0x80)
+
 uintptr_t am62l_sec_entrypoint;
 uintptr_t am62l_sec_entrypoint_glob;
 void  __aligned(16) jump_to_atf_func(void *unused);
@@ -126,6 +128,26 @@ void am62l_pwr_domain_on_finish(const psci_power_state_t *target_state)
 {
 	k3_gic_pcpu_init();
 	k3_gic_cpuif_enable();
+}
+
+static void __dead2 am62l_system_off(void)
+{
+	INFO("%s: Initiating system poweroff sequence\n", __func__);
+
+	/* Notify TIFS to prepare for poweroff */
+	ti_sci_prepare_sleep(TI_K3_SLEEP_MODE_RTC_ONLY, 0U, 0U);
+
+	/* Enter poweroff by configuring PMIC control register */
+	mmio_write_32(WKUP_CTRL_MMR_SEC_5_BASE + PMCTRL_SYS, 0x0U);
+	dsb();
+	isb();
+
+	INFO("%s: PMIC control configured, waiting for poweroff\n", __func__);
+
+	/* Cannot safely recover - enter infinite WFI loop */
+	while (true) {
+		wfi();
+	}
 }
 
 static void am62l_system_reset(void)
@@ -233,6 +255,7 @@ static plat_psci_ops_t am62l_plat_psci_ops = {
 	.pwr_domain_pwr_down = am62l_pwr_down_domain,
 	.pwr_domain_on_finish = am62l_pwr_domain_on_finish,
 	.system_reset = am62l_system_reset,
+	.system_off = am62l_system_off,
 	.pwr_domain_suspend = am62l_pwr_domain_suspend,
 	.pwr_domain_suspend_finish = am62l_pwr_domain_suspend_finish,
 	.get_sys_suspend_power_state = am62l_get_sys_suspend_power_state,
