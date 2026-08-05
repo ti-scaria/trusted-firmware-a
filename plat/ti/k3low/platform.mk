@@ -24,6 +24,9 @@ $(eval $(call add_define,BL32_BASE))
 PRELOADED_BL33_BASE ?= 0x82000000
 $(eval $(call add_define,PRELOADED_BL33_BASE))
 
+TIFS_LPM_SAVE_CTX ?= 0x801fc000
+$(eval $(call add_define,TIFS_LPM_SAVE_CTX))
+
 K3_HW_CONFIG_BASE ?= 0x88000000
 $(eval $(call add_define,K3_HW_CONFIG_BASE))
 
@@ -140,5 +143,8 @@ BL1_SOURCES		+= \
 				${PLAT_PATH}/common/am62l_psc_minimal.c \
 				plat/ti/common/k3_helpers.S \
 				drivers/io/io_storage.c \
+				drivers/delay_timer/delay_timer.c \
+				drivers/delay_timer/generic_delay_timer.c \
 				${K3_LPDDR4_SOURCES} \
 				${K3_TI_SCI_TRANSPORT} \
+				${K3_TI_SCI_SOURCES} \

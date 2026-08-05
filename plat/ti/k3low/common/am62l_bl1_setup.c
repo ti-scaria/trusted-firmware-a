@@ -11,6 +11,9 @@
 #include <errno.h>
 #include <lib/mmio.h>
 #include <lib/xlat_tables/xlat_tables_v2.h>
+
+#include <ti_sci.h>
+#include <ti_sci_protocol.h>
 #include <ti_sci_transport.h>
 
 #include <am62l_ddrss.h>
@@ -80,6 +83,17 @@ struct a53_rom_msg {
 	} imagelocator;
 } __packed;
 
+/*
+ * Wrapper message sent to TIFS during RTC + DDR resume.
+ * TIFS expects the minimal context restore message (TI_SCI_MSG_MIN_CTX_RESTORE)
+ * to notify it that DDR is active and ready for its context to be restored.
+ */
+struct a53_tifs_ctx_restore_msg {
+	struct tisci_msg_min_context_restore_req req;
+} __packed;
+
+static struct a53_tifs_ctx_restore_msg a53_tifs_msg_obj;
+
 meminfo_t *bl1_plat_sec_mem_layout(void)
 {
 	/*
@@ -137,12 +151,42 @@ void bl1_plat_arch_setup(void)
 	enable_mmu_el3(0);
 }
 
+unsigned int plat_get_syscnt_freq2(void)
+{
+	return SYS_COUNTER_FREQ_IN_TICKS;
+}
+
 static void __dead2 k3_bl1_handoff(void)
 {
 	struct a53_rom_msg a53_rom_msg_obj = { 0 };
 	struct ti_sci_msg msg;
 	volatile uint32_t devstat;
 	uint32_t boot_mode;
+	bool is_rtc_only_ddr_exit;
+
+	is_rtc_only_ddr_exit =
+		((mmio_read_32(WKUP_CTRL_MMR_SEC_5_BASE +
+			       CANUART_WAKE_OFF_MODE_STAT)) ==
+		 RTC_ONLY_PLUS_DDR_MAGIC_WORD);
+	if (is_rtc_only_ddr_exit == true) {
+		a53_tifs_msg_obj.req.hdr.host = 0xAU;
+		a53_tifs_msg_obj.req.hdr.seq = 0x12U;
+		a53_tifs_msg_obj.req.hdr.type = TI_SCI_MSG_MIN_CTX_RESTORE;
+		a53_tifs_msg_obj.req.ctx_lo = TIFS_LPM_SAVE_CTX;
+		a53_tifs_msg_obj.req.ctx_hi = 0x00000000U;
+
+		if (ti_sci_boot_notification() != 0) {
+			ERROR("BL1: boot notification failed during RTC+DDR resume\n");
+		}
+
+		msg.buf = (uint8_t *)&a53_tifs_msg_obj;
+		msg.len = sizeof(a53_tifs_msg_obj);
+		ti_sci_transport_send(TX_SECURE_TRANSPORT_CHANNEL_ID, &msg);
+		INFO("BL1: sent min context restore message to TIFS\n");
+		while (true) {
+			wfi();
+		}
+	}
 
 	a53_rom_msg_obj.cmdid = BL1_DONE_MSG_ID;
 	a53_rom_msg_obj.sizeandflags = BL1_MSG_SIZE_FLAG;
@@ -176,12 +220,15 @@ static void __dead2 k3_bl1_handoff(void)
 	ti_sci_transport_send(TX_SECURE_TRANSPORT_CHANNEL_ID, &msg);
 	NOTICE("ENTERING WFI - end of bl1\n");
 	console_flush();
-	while (true)
+	while (true) {
 		wfi();
+	}
 }
 
 void bl1_platform_setup(void)
 {
+	/* Initialize tick timer required for udelays */
+	generic_delay_timer_init();
 	/*
 	 * AM62L uses a non-standard BL1 flow: instead of loading BL2, BL1
 	 * initialises DDR, then calls k3_bl1_handoff() which sends a message
