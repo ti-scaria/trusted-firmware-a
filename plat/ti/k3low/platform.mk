@@ -134,5 +134,8 @@ BL1_SOURCES		+= \
 				${PLAT_PATH}/common/am62l_psc_minimal.c \
 				plat/ti/common/k3_helpers.S \
 				drivers/io/io_storage.c \
+				drivers/delay_timer/delay_timer.c \
+				drivers/delay_timer/generic_delay_timer.c \
 				${K3_LPDDR4_SOURCES} \
 				${K3_TI_SCI_TRANSPORT} \
+				${K3_TI_SCI_SOURCES} \

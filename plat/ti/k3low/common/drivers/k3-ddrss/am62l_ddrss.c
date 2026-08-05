@@ -219,6 +219,89 @@ static void k3_lpddr4_info_handler(const ti_lpddr4_privatedata *pd,
 		k3_lpddr4_ack_freq_upd_req(pd);
 }
 
+/*
+ * Restore DDR controller state when resuming from RTC + DDR retention mode.
+ *
+ * The normal DDR init path performs full training and re-initialises memory
+ * contents. This path skips training and instead configures the controller
+ * to exit self-refresh while preserving the existing DRAM contents.
+ * The sequence matches the register programming required by the Cadence
+ * LPDDR4 controller to perform a power-up self-refresh exit.
+ */
+static void lpm_restore_ddr(ti_lpddr4_privatedata *pd, ti_lpddr4_obj *driverdt)
+{
+	uint32_t regval;
+
+	/* Disable auto self-refresh entry/exit (CTL reg 0x29C, bits[23:20] and [15:8]) */
+	driverdt->readreg(pd, LPDDR4_CTL_REGS, (0x0000029CU / 4U), &regval);
+	regval = (regval & (0xF0F0FFFFU));
+	driverdt->writereg(pd, LPDDR4_CTL_REGS, (0x0000029CU / 4U), regval);
+
+	/*
+	 * PHY_SET_DFI_INPUT_Z (PHY reg 0x5468, bit 0): set to 1 so the PHY
+	 * drives DFI inputs with the correct impedance before self-refresh exit.
+	 */
+	driverdt->readreg(pd, LPDDR4_CTL_REGS, (0x00005468U / 4U), &regval);
+	regval = (regval | (0x1U));
+	driverdt->writereg(pd, LPDDR4_CTL_REGS, (0x00005468U / 4U), regval);
+
+	/*
+	 * PWRUP_SREFRESH_EXIT (CTL reg 0x1A8, bit 0): set to 1 so the
+	 * controller (not PI) issues the power-up self-refresh exit command.
+	 */
+	driverdt->readreg(pd, LPDDR4_CTL_REGS, (0x000001A8U / 4U), &regval);
+	regval = (regval | (0x1U));
+	driverdt->writereg(pd, LPDDR4_CTL_REGS, (0x000001A8U / 4U), regval);
+
+	/*
+	 * PI_PWRUP_SREFRESH_EXIT (PI reg 0x2218, bit 0): clear to 0 so the
+	 * PI does not issue a second self-refresh exit (CTL handles it above).
+	 */
+	driverdt->readreg(pd, LPDDR4_CTL_REGS, (0x00002218U / 4U), &regval);
+	regval = (regval & ~(0x1U));
+	driverdt->writereg(pd, LPDDR4_CTL_REGS, (0x00002218U / 4U), regval);
+
+	/*
+	 * PI_DRAM_INIT_EN (PI reg 0x2228, bit 8): clear to 0 to skip DRAM
+	 * re-initialisation during PI start — memory contents must be preserved.
+	 */
+	driverdt->readreg(pd, LPDDR4_CTL_REGS, (0x00002228U / 4U), &regval);
+	regval = (regval & (0xFFFFFEFFU));
+	driverdt->writereg(pd, LPDDR4_CTL_REGS, (0x00002228U / 4U), regval);
+
+	/*
+	 * PI_DFI_PHYMSTR_STATE_SEL_R (PI reg 0x2018, bit 8): set to 1 to
+	 * select the PHY master state machine path required for resume.
+	 */
+	driverdt->readreg(pd, LPDDR4_CTL_REGS, (0x00002018U / 4U), &regval);
+	regval = (regval | (0x1U << 8));
+	driverdt->writereg(pd, LPDDR4_CTL_REGS, (0x00002018U / 4U), regval);
+
+	/*
+	 * PHY_INDEP_INIT_MODE (CTL reg 0x54, bit 8): clear to 0 so the PHY
+	 * does not enter independent initialisation mode on start.
+	 */
+	driverdt->readreg(pd, LPDDR4_CTL_REGS, (0x00000054U / 4U), &regval);
+	regval = (regval & (0xFFFFFEFFU));
+	driverdt->writereg(pd, LPDDR4_CTL_REGS, (0x00000054U / 4U), regval);
+
+	/*
+	 * PHY_INDEP_TRAIN_MODE (CTL reg 0x50, bit 24): set to 1 to enable
+	 * independent PHY training mode during the resume sequence.
+	 */
+	driverdt->readreg(pd, LPDDR4_CTL_REGS, (0x00000050U / 4U), &regval);
+	regval = (regval | (0x1U << 24));
+	driverdt->writereg(pd, LPDDR4_CTL_REGS, (0x00000050U / 4U), regval);
+
+	/* De-assert the DDR32SS data_retention signal to release DDR from retention */
+	mmio_write_32((WKUP_CTRL_MMR_SEC_4_BASE + DDR32SS_PMCTRL), 0x0U);
+	mmio_write_32((WKUP_CTRL_MMR_SEC_4_BASE + DDR32SS_PMCTRL), (0x1U << 31U));
+	while ((mmio_read_32(WKUP_CTRL_MMR_SEC_4_BASE + DDR32SS_PMCTRL) &
+		0x80000000U) == 0x0U) {
+	}
+	mmio_write_32((WKUP_CTRL_MMR_SEC_4_BASE + DDR32SS_PMCTRL), 0x0U);
+}
+
 /*************************************************************************
  * Function to change DDRSS PLL clock. It is called by the lpddr4 driver
  * during training
@@ -235,6 +318,7 @@ int am62l_lpddr4_init(void)
 	uint32_t sdram_idx;
 	uint32_t v2a_ctl_reg;
 	uint64_t ddr_ram_size;
+	bool restore;
 	int ret;
 
 	ddrss.ddr_fhs_cnt = am62lx_ddr_cfg.ddr_fhs_cnt;
@@ -327,6 +411,16 @@ int am62l_lpddr4_init(void)
 	if (CPS_FLD_READ(TI_LPDDR4__START__FLD, regval) != 0) {
 		ERROR("LPDDR4 prestart failed\n");
 		return -ENXIO;
+	}
+
+	restore = (mmio_read_32((WKUP_CTRL_MMR_SEC_5_BASE +
+				CANUART_WAKE_OFF_MODE_STAT)) ==
+		   RTC_ONLY_PLUS_DDR_MAGIC_WORD);
+	if (restore == true) {
+		INFO("Exiting RTC only + DDR\n");
+		lpm_restore_ddr(pd, driverdt);
+	} else {
+		INFO("Doing normal DDR init\n");
 	}
 
 	INFO("lpddr4: Start DDR controller\n");
