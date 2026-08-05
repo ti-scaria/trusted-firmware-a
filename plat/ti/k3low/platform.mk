@@ -33,6 +33,9 @@ $(eval $(call add_define,K3_HW_CONFIG_BASE))
 K3_SPL_IMG_OFFSET := 0x80000
 $(eval $(call add_define,K3_SPL_IMG_OFFSET))
 
+# Add support for platform supplied linker script for BL31 build
+PLAT_EXTRA_LD_SCRIPT	:=	1
+
 AM62L_DDR_RAM_SIZE ?= 0x80000000
 $(eval $(call add_define,AM62L_DDR_RAM_SIZE))
 
