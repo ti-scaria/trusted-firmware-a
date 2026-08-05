@@ -50,13 +50,43 @@
 #define DDR4_CLKCHNG_ACK_DONE 0x01U
 #define DDR4_CLKCHNG_ACK_NONE 0x00U
 
+/* WKUP_CTRL_MMR_CFG4_DDR32SS_PMCTRL Register */
+#define DDR32SS_PMCTRL (0x1000U)
+#define DDR32SS_PMCTRL_DATA_RETENTION_DEACTIVATED 0x0U
+#define DDR32SS_PMCTRL_LATCH_MASK GENMASK(31, 31)
+#define DDR32SS_PMCTRL_LATCH_LOAD_SHIFT 31U
+#define DDR32SS_PMCTRL_LATCH_CLOSED 0x0U
+#define DDR32SS_PMCTRL_LATCH_OPEN 0x1U
+
 #define DDRSS_PI_REGISTER_BLOCK__OFFS 0x2000
 #define DDRSS_PI_83__SFR_OFFS 0x14C
 #define DDRSS_CTL_342__SFR_OFFS 0x558
 #define DENALI_CTL_0_DRAM_CLASS_LPDDR4 0xBU
 
-#define DDRSS_V2A_CTL_REG 0x0020
+#define CTL_REG_PHY_INDEP_TRAIN 20U
+#define CTL_REG_PHY_INDEP_INIT 21U
+#define CTL_REG_PWRUP_SREFRESH 106U
+#define CTL_REG_LP_AUTO 167U
 
+#define PI_REG_DFI_PHYMSTR_STATE_SEL_R 6U
+#define PI_REG_PWRUP_SREFRESH 134U
+#define PI_REG_DRAM_INIT 138U
+
+#define PHY_REG_DPI_INPUT_0 1306U
+
+#define CTL_LP_AUTO_ENTRY_EN_MASK GENMASK(19, 16)
+#define CTL_LP_AUTO_EXIT_EN_MASK GENMASK(27, 24)
+#define CTL_PWRUP_SREFRESH_EXIT_EN BIT(0)
+#define CTL_PHY_INDEP_INIT_MODE BIT(8)
+#define CTL_PHY_INDEP_TRAIN_MODE BIT(24)
+
+#define PI_PWRUP_SREFRESH_EXIT_EN BIT(0)
+#define PI_DRAM_INIT_EN BIT(8)
+#define PI_DFI_PHYMSTR_STATE_SREF BIT(8)
+
+#define PHY_DFI_INPUT_0_SET 0x1U
+
+#define DDRSS_V2A_CTL_REG 0x0020
 #define DDRSS_V2A_CTL_REG_SDRAM_IDX_CALC(x) ((ddrss_log2_floor(x) - 16) << 5)
 #define DDRSS_V2A_CTL_REG_SDRAM_IDX_MASK (~(0x1F << 5))
 
@@ -219,6 +249,93 @@ static void k3_lpddr4_info_handler(const ti_lpddr4_privatedata *pd,
 		k3_lpddr4_ack_freq_upd_req(pd);
 }
 
+/*
+ * Restore DDR controller state when resuming from RTC + DDR retention mode.
+ *
+ * The normal DDR init path performs full training and re-initialises memory
+ * contents. This path skips training and instead configures the controller
+ * to exit self-refresh while preserving the existing DRAM contents.
+ * The sequence matches the register programming required by the Cadence
+ * LPDDR4 controller to perform a power-up self-refresh exit.
+ */
+static void lpm_restore_ddr(ti_lpddr4_privatedata *pd, ti_lpddr4_obj *driverdt)
+{
+	uint32_t regval;
+
+	/* Disable auto self-refresh entry/exit */
+	driverdt->readreg(pd, LPDDR4_CTL_REGS, CTL_REG_LP_AUTO, &regval);
+	regval = (regval & ~(CTL_LP_AUTO_ENTRY_EN_MASK));
+	regval = (regval & ~(CTL_LP_AUTO_EXIT_EN_MASK));
+	driverdt->writereg(pd, LPDDR4_CTL_REGS, CTL_REG_LP_AUTO, regval);
+
+	/*
+	 * PHY_SET_DFI_INPUT_0: set to 1 so the PHY drives DFI inputs with
+	 * the correct impedance before self-refresh exit.
+	 */
+	driverdt->readreg(pd, LPDDR4_PHY_REGS, PHY_REG_DPI_INPUT_0, &regval);
+	regval = (regval | PHY_DFI_INPUT_0_SET);
+	driverdt->writereg(pd, LPDDR4_PHY_REGS, PHY_REG_DPI_INPUT_0, regval);
+
+	/*
+	 * PWRUP_SREFRESH_EXIT: set to 1 so the controller (not PI)
+	 * issues the power-up self-refresh exit command.
+	 */
+	driverdt->readreg(pd, LPDDR4_CTL_REGS, CTL_REG_PWRUP_SREFRESH, &regval);
+	regval = (regval | (CTL_PWRUP_SREFRESH_EXIT_EN));
+	driverdt->writereg(pd, LPDDR4_CTL_REGS, CTL_REG_PWRUP_SREFRESH, regval);
+
+	/*
+	 * PI_PWRUP_SREFRESH_EXIT: clear to 0 so the PI does not issue
+	 * a second self-refresh exit
+	 */
+	driverdt->readreg(pd, LPDDR4_PHY_INDEP_REGS, PI_REG_PWRUP_SREFRESH, &regval);
+	regval = (regval & ~(PI_PWRUP_SREFRESH_EXIT_EN));
+	driverdt->writereg(pd, LPDDR4_PHY_INDEP_REGS, PI_REG_PWRUP_SREFRESH, regval);
+
+	/*
+	 * PI_DRAM_INIT_EN: clear to 0 to skip DRAM re-initialisation during
+	 * PI start - memory contents must be preserved.
+	 */
+	driverdt->readreg(pd, LPDDR4_PHY_INDEP_REGS, PI_REG_DRAM_INIT, &regval);
+	regval = (regval & ~(PI_DRAM_INIT_EN));
+	driverdt->writereg(pd, LPDDR4_PHY_INDEP_REGS, PI_REG_DRAM_INIT, regval);
+
+	/*
+	 * PI_DFI_PHYMSTR_STATE_SEL_R: set to 1 to select the PHY master
+	 * state machine path required for resume.
+	 */
+	driverdt->readreg(pd, LPDDR4_PHY_INDEP_REGS, PI_REG_DFI_PHYMSTR_STATE_SEL_R, &regval);
+	regval = (regval | PI_DFI_PHYMSTR_STATE_SREF);
+	driverdt->writereg(pd, LPDDR4_PHY_INDEP_REGS, PI_REG_DFI_PHYMSTR_STATE_SEL_R, regval);
+
+	/*
+	 * PHY_INDEP_INIT_MODE: clear to 0 so the PHY does not enter
+	 * independent initialisation mode on start.
+	 */
+	driverdt->readreg(pd, LPDDR4_CTL_REGS, CTL_REG_PHY_INDEP_INIT, &regval);
+	regval = (regval & ~(CTL_PHY_INDEP_INIT_MODE));
+	driverdt->writereg(pd, LPDDR4_CTL_REGS, CTL_REG_PHY_INDEP_INIT, regval);
+
+	/*
+	 * PHY_INDEP_TRAIN_MODE: set to 1 to enable independent PHY
+	 * training mode during the resume sequence.
+	 */
+	driverdt->readreg(pd, LPDDR4_CTL_REGS, CTL_REG_PHY_INDEP_TRAIN, &regval);
+	regval = (regval | CTL_PHY_INDEP_TRAIN_MODE);
+	driverdt->writereg(pd, LPDDR4_CTL_REGS, CTL_REG_PHY_INDEP_TRAIN, regval);
+
+/* De-assert the DDR32SS data_retention signal to release DDR from retention */
+	mmio_write_32((WKUP_CTRL_MMR_SEC_4_BASE + DDR32SS_PMCTRL),
+		      DDR32SS_PMCTRL_DATA_RETENTION_DEACTIVATED);
+	mmio_write_32((WKUP_CTRL_MMR_SEC_4_BASE + DDR32SS_PMCTRL),
+		      (DDR32SS_PMCTRL_LATCH_OPEN << DDR32SS_PMCTRL_LATCH_LOAD_SHIFT));
+	while ((mmio_read_32(WKUP_CTRL_MMR_SEC_4_BASE + DDR32SS_PMCTRL) &
+		DDR32SS_PMCTRL_LATCH_MASK) == DDR32SS_PMCTRL_LATCH_CLOSED) {
+	}
+	mmio_write_32((WKUP_CTRL_MMR_SEC_4_BASE + DDR32SS_PMCTRL),
+		      DDR32SS_PMCTRL_DATA_RETENTION_DEACTIVATED);
+}
+
 /*************************************************************************
  * Function to change DDRSS PLL clock. It is called by the lpddr4 driver
  * during training
@@ -235,6 +352,7 @@ int am62l_lpddr4_init(void)
 	uint32_t sdram_idx;
 	uint32_t v2a_ctl_reg;
 	uint64_t ddr_ram_size;
+	bool restore;
 	int ret;
 
 	ddrss.ddr_fhs_cnt = am62lx_ddr_cfg.ddr_fhs_cnt;
@@ -327,6 +445,16 @@ int am62l_lpddr4_init(void)
 	if (CPS_FLD_READ(TI_LPDDR4__START__FLD, regval) != 0) {
 		ERROR("LPDDR4 prestart failed\n");
 		return -ENXIO;
+	}
+
+	restore = (mmio_read_32((WKUP_CTRL_MMR_SEC_5_BASE +
+				CANUART_WAKE_OFF_MODE_STAT)) ==
+		   RTC_ONLY_PLUS_DDR_MAGIC_WORD);
+	if (restore == true) {
+		INFO("Exiting RTC only + DDR\n");
+		lpm_restore_ddr(pd, driverdt);
+	} else {
+		INFO("Doing normal DDR init\n");
 	}
 
 	INFO("lpddr4: Start DDR controller\n");
