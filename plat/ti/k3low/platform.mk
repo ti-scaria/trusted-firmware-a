@@ -97,6 +97,7 @@ K3_LPM_SOURCES		:=	\
 				${PLAT_PATH}/common/drivers/lpm/lpm_ddr.c		\
 				${PLAT_PATH}/common/drivers/lpm/lpm_pll_16fft_raw.c	\
 				${PLAT_PATH}/common/drivers/lpm/lpm_psc_raw.c		\
+				${PLAT_PATH}/common/drivers/lpm/lpm_stub.c		\
 				${PLAT_PATH}/common/drivers/lpm/lpm_timeout.c	\
 				${PLAT_PATH}/common/drivers/lpm/lpm_trace.c	\
 
