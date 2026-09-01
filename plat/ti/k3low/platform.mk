@@ -95,6 +95,7 @@ K3_TI_SCI_TRANSPORT	:= \
 
 K3_LPM_SOURCES		:=	\
 				${PLAT_PATH}/common/drivers/lpm/lpm_timeout.c	\
+				${PLAT_PATH}/common/drivers/lpm/lpm_trace.c	\
 
 # LPM driver files must not be compiled with LTO. With LTO active, GCC
 # defers code generation to link time and merges all functions into a
