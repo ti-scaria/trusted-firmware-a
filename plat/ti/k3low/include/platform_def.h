@@ -86,4 +86,6 @@
 #define K3LOW_WKUP_RTC_BASE   UL(0x2b1f0000)
 #define K3LOW_WKUP_RTC_SIZE   UL(0x2000)
 
+#define K3_WKUP_UART_BASE_ADDRESS	        (0x2b300000U)
+
 #endif /* PLATFORM_DEF_H */
