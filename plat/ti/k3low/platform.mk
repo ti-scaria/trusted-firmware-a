@@ -94,6 +94,8 @@ K3_TI_SCI_TRANSPORT	:= \
 				drivers/ti/ipc/mailbox.c \
 
 K3_LPM_SOURCES		:=	\
+				${PLAT_PATH}/common/drivers/lpm/k3_lpm_ctrl.c		\
+				${PLAT_PATH}/common/drivers/lpm/switch_stack.S	\
 				${PLAT_PATH}/common/drivers/lpm/lpm_resume.S	\
 				${PLAT_PATH}/common/drivers/lpm/lpm_ddr.c		\
 				${PLAT_PATH}/common/drivers/lpm/lpm_pll_16fft_raw.c	\
