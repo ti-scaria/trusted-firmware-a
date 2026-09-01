@@ -70,6 +70,7 @@ PLAT_INCLUDES +=	\
 			-I${PLAT_PATH}/common/drivers/k3-ddrss \
 			-I${PLAT_PATH}/common/drivers/k3-ddrss/common \
 			-I${PLAT_PATH}/common/drivers/k3-ddrss/16bit \
+			-I${PLAT_PATH}/common/drivers/lpm		\
 			-I${PLAT_PATH}/board/${TARGET_BOARD}/include	\
 			-I${PLAT_PATH}					\
 			-I${PLAT_PATH}/common/pm		\
@@ -92,6 +93,18 @@ K3_PSCI_SOURCES		+= \
 K3_TI_SCI_TRANSPORT	:= \
 				drivers/ti/ipc/mailbox.c \
 
+K3_LPM_SOURCES		:=	\
+				${PLAT_PATH}/common/drivers/lpm/lpm_timeout.c	\
+
+# LPM driver files must not be compiled with LTO. With LTO active, GCC
+# defers code generation to link time and merges all functions into a
+# single .text, making linker-script filename patterns ineffective.
+# Disabling LTO per-object ensures the per-function .text.* sections
+# (needed for WKUP SRAM placement) are emitted by the compiler.
+$(BUILD_PLAT)/bl31/lpm_%.o: CFLAGS := $(filter-out -flto,$(CFLAGS))
+$(BUILD_PLAT)/bl31/lpm_%.o: LTO_CFLAGS :=
+
+
 BL31_SOURCES		+= \
 				drivers/clk/clk.c			\
 				drivers/delay_timer/delay_timer.c \
@@ -103,6 +116,7 @@ BL31_SOURCES		+= \
 				drivers/scmi-msg/power_domain.c \
 				${K3_PSCI_SOURCES}		\
 				${K3_TI_SCI_TRANSPORT}		\
+				${K3_LPM_SOURCES}				\
 				${PLAT_PATH}/common/scmi/ti_scmi_clk_data.c	\
 				${PLAT_PATH}/common/scmi/ti_scmi_pd_data.c	\
 				${PLAT_PATH}/common/am62l_bl31_setup.c \
