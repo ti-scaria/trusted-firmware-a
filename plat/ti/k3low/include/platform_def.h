@@ -88,4 +88,7 @@
 
 #define K3_WKUP_UART_BASE_ADDRESS	        (0x2b300000U)
 
+#define WKUP_CTRL_MMR_SEC_4_BASE	        (0x43040000UL)
+#define DDR32SS_PMCTRL				(0x1000U)
+
 #endif /* PLATFORM_DEF_H */
