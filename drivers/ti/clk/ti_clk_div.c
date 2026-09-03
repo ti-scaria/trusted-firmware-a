@@ -416,6 +416,25 @@ bool ti_clk_div_reg_set_div(struct ti_clk *clkp, uint32_t div)
 	return ret;
 }
 
+int32_t ti_clk_div_suspend_save(struct ti_clk *clkp)
+{
+	clkp->saved_val = ti_clk_div_reg_get_div(clkp);
+
+	return 0;
+}
+
+int32_t ti_clk_div_resume_restore(struct ti_clk *clkp)
+{
+	bool ret;
+
+	ret = ti_clk_div_reg_set_div(clkp, clkp->saved_val);
+	if (ret == true) {
+		return 0;
+	} else {
+		return -EFAULT;
+	}
+}
+
 const struct ti_clk_drv_div ti_clk_drv_div_reg_ro = {
 	.drv = {
 		.get_freq = ti_clk_div_get_freq,
@@ -428,6 +447,8 @@ const struct ti_clk_drv_div ti_clk_drv_div_reg = {
 		.set_freq	= ti_clk_div_set_freq,
 		.get_freq	= ti_clk_div_get_freq,
 		.init		= ti_clk_div_init,
+		.suspend_save	= ti_clk_div_suspend_save,
+		.resume_restore = ti_clk_div_resume_restore,
 	},
 	.set_div = ti_clk_div_reg_set_div,
 	.get_div = ti_clk_div_reg_get_div,
@@ -512,11 +533,40 @@ bool ti_clk_div_reg_go_set_div(struct ti_clk *clkp, uint32_t div)
 	return ret;
 }
 
+/*
+ * Save the current GO-bit divider value before entering low power mode
+ * so it can be restored during resume.
+ */
+int32_t ti_clk_div_go_suspend_save(struct ti_clk *clkp)
+{
+	clkp->saved_val = ti_clk_div_reg_go_get_div(clkp);
+
+	return 0;
+}
+
+/*
+ * Restore the saved GO-bit divider value after exiting low power mode.
+ * Returns -EFAULT if the divider value is rejected by the hardware.
+ */
+int32_t ti_clk_div_go_resume_restore(struct ti_clk *clkp)
+{
+	bool ret;
+
+	ret = ti_clk_div_reg_go_set_div(clkp, clkp->saved_val);
+	if (ret == true) {
+		return 0;
+	} else {
+		return -EFAULT;
+	}
+}
+
 const struct ti_clk_drv_div ti_clk_drv_div_reg_go = {
 	.drv = {
 		.set_freq = ti_clk_div_set_freq,
 		.get_freq = ti_clk_div_get_freq,
 		.init = ti_clk_div_init,
+		.suspend_save	= ti_clk_div_go_suspend_save,
+		.resume_restore = ti_clk_div_go_resume_restore,
 	},
 	.set_div = ti_clk_div_reg_go_set_div,
 	.get_div = ti_clk_div_reg_go_get_div,

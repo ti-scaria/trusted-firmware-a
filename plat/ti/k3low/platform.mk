@@ -24,11 +24,17 @@ $(eval $(call add_define,BL32_BASE))
 PRELOADED_BL33_BASE ?= 0x82000000
 $(eval $(call add_define,PRELOADED_BL33_BASE))
 
+TIFS_LPM_SAVE_CTX ?= 0x801fc000
+$(eval $(call add_define,TIFS_LPM_SAVE_CTX))
+
 K3_HW_CONFIG_BASE ?= 0x88000000
 $(eval $(call add_define,K3_HW_CONFIG_BASE))
 
 K3_SPL_IMG_OFFSET := 0x80000
 $(eval $(call add_define,K3_SPL_IMG_OFFSET))
+
+# Add support for platform supplied linker script for BL31 build
+PLAT_EXTRA_LD_SCRIPT	:=	1
 
 AM62L_DDR_RAM_SIZE ?= 0x80000000
 $(eval $(call add_define,AM62L_DDR_RAM_SIZE))
@@ -70,6 +76,7 @@ PLAT_INCLUDES +=	\
 			-I${PLAT_PATH}/common/drivers/k3-ddrss \
 			-I${PLAT_PATH}/common/drivers/k3-ddrss/common \
 			-I${PLAT_PATH}/common/drivers/k3-ddrss/16bit \
+			-I${PLAT_PATH}/common/drivers/lpm		\
 			-I${PLAT_PATH}/board/${TARGET_BOARD}/include	\
 			-I${PLAT_PATH}					\
 			-I${PLAT_PATH}/common/pm		\
@@ -92,6 +99,26 @@ K3_PSCI_SOURCES		+= \
 K3_TI_SCI_TRANSPORT	:= \
 				drivers/ti/ipc/mailbox.c \
 
+K3_LPM_SOURCES		:=	\
+				${PLAT_PATH}/common/drivers/lpm/k3_lpm_ctrl.c		\
+				${PLAT_PATH}/common/drivers/lpm/switch_stack.S	\
+				${PLAT_PATH}/common/drivers/lpm/lpm_resume.S	\
+				${PLAT_PATH}/common/drivers/lpm/lpm_ddr.c		\
+				${PLAT_PATH}/common/drivers/lpm/lpm_pll_16fft_raw.c	\
+				${PLAT_PATH}/common/drivers/lpm/lpm_psc_raw.c		\
+				${PLAT_PATH}/common/drivers/lpm/lpm_stub.c		\
+				${PLAT_PATH}/common/drivers/lpm/lpm_timeout.c	\
+				${PLAT_PATH}/common/drivers/lpm/lpm_trace.c	\
+
+# LPM driver files must not be compiled with LTO. With LTO active, GCC
+# defers code generation to link time and merges all functions into a
+# single .text, making linker-script filename patterns ineffective.
+# Disabling LTO per-object ensures the per-function .text.* sections
+# (needed for WKUP SRAM placement) are emitted by the compiler.
+$(BUILD_PLAT)/bl31/lpm_%.o: CFLAGS := $(filter-out -flto,$(CFLAGS))
+$(BUILD_PLAT)/bl31/lpm_%.o: LTO_CFLAGS :=
+
+
 BL31_SOURCES		+= \
 				drivers/clk/clk.c			\
 				drivers/delay_timer/delay_timer.c \
@@ -103,6 +130,7 @@ BL31_SOURCES		+= \
 				drivers/scmi-msg/power_domain.c \
 				${K3_PSCI_SOURCES}		\
 				${K3_TI_SCI_TRANSPORT}		\
+				${K3_LPM_SOURCES}				\
 				${PLAT_PATH}/common/scmi/ti_scmi_clk_data.c	\
 				${PLAT_PATH}/common/scmi/ti_scmi_pd_data.c	\
 				${PLAT_PATH}/common/am62l_bl31_setup.c \
@@ -115,5 +143,8 @@ BL1_SOURCES		+= \
 				${PLAT_PATH}/common/am62l_psc_minimal.c \
 				plat/ti/common/k3_helpers.S \
 				drivers/io/io_storage.c \
+				drivers/delay_timer/delay_timer.c \
+				drivers/delay_timer/generic_delay_timer.c \
 				${K3_LPDDR4_SOURCES} \
 				${K3_TI_SCI_TRANSPORT} \
+				${K3_TI_SCI_SOURCES} \

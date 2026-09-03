@@ -25,6 +25,9 @@
 #include <ti_clk_mux.h>
 #include <ti_device.h>
 
+/* Maximum number of tries for LPM clock suspend/resume operations */
+#define LPM_CLK_MAX_TRIES		10U
+
 uint32_t ti_clk_value_set_freq(struct ti_clk *clkp, uint32_t target_hz,
 			       uint32_t min_hz,
 			       uint32_t max_hz,
@@ -392,6 +395,149 @@ void ti_clk_drop_pwr_up_en(void)
 						 __ATOMIC_ACQ_REL);
 		}
 	}
+}
+
+/*
+ * ti_clk_suspend_save() - Save clock state during suspend
+ *
+ * Calls the clock driver's suspend_save handler to save the clock's current
+ * state before entering low power mode. Marks the clock as suspended to avoid
+ * duplicate operations.
+ *
+ * @clkp: Clock to save state for
+ *
+ * Return: 0 on success, error code otherwise
+ */
+static int32_t ti_clk_suspend_save(struct ti_clk *clkp)
+{
+	int32_t ret;
+
+	assert(clkp != NULL);
+
+	/* Already suspended - nothing to do */
+	if ((clkp->flags & TI_CLK_FLAG_SUSPENDED) != 0U) {
+		return 0;
+	}
+
+	if ((clkp->drv == NULL) || (clkp->drv->suspend_save == NULL)) {
+		/* No handler provided - mark as suspended and succeed */
+		clkp->flags |= TI_CLK_FLAG_SUSPENDED;
+		return 0;
+	}
+
+	ret = clkp->drv->suspend_save(clkp);
+	if (ret == 0) {
+		clkp->flags |= TI_CLK_FLAG_SUSPENDED;
+	}
+
+	return ret;
+}
+
+/*
+ * ti_clk_resume_restore() - Restore clock state during resume
+ *
+ * Calls the clock driver's resume_restore handler to restore the clock's
+ * state after exiting low power mode. Ensures parent clocks are restored
+ * first before restoring child clocks. Clears the suspended flag after
+ * successful restoration.
+ *
+ * @clkp: Clock to restore state for
+ *
+ * Return: 0 on success, -EINVAL if parent not yet restored, error code otherwise
+ */
+static int32_t ti_clk_resume_restore(struct ti_clk *clkp)
+{
+	const struct ti_clk_parent *p;
+	struct ti_clk *parent_clk;
+	int32_t ret;
+
+	assert(clkp != NULL);
+
+	/* If this clock is not suspended there is nothing to restore */
+	if ((clkp->flags & TI_CLK_FLAG_SUSPENDED) != TI_CLK_FLAG_SUSPENDED) {
+		return 0;
+	}
+
+	/* Defer if the parent has not yet been restored */
+	p = ti_clk_mux_get_parent(clkp);
+	if (p != NULL) {
+		parent_clk = ti_clk_lookup((ti_clk_idx_t)p->clk);
+		if ((parent_clk != NULL) &&
+		    ((parent_clk->flags & TI_CLK_FLAG_SUSPENDED) == TI_CLK_FLAG_SUSPENDED)) {
+			return -EINVAL;
+		}
+	}
+
+	if ((clkp->drv == NULL) || (clkp->drv->resume_restore == NULL)) {
+		/* No handler provided - mark as resumed and succeed */
+		clkp->flags &= ~TI_CLK_FLAG_SUSPENDED;
+		return 0;
+	}
+
+	ret = clkp->drv->resume_restore(clkp);
+	if (ret == 0) {
+		clkp->flags &= ~TI_CLK_FLAG_SUSPENDED;
+	}
+
+	return ret;
+}
+
+int32_t ti_clks_suspend(void)
+{
+	uint8_t tries;
+	ti_clk_idx_t i;
+	int32_t ret;
+	bool deferred;
+
+	for (tries = 0U; tries < LPM_CLK_MAX_TRIES; tries++) {
+		deferred = false;
+
+		for (i = 1U; i < soc_clock_count; i++) {
+			ret = ti_clk_suspend_save(&soc_clocks[i]);
+			if (ret == -EINVAL) {
+				/* Parent not yet suspended; retry this pass */
+				deferred = true;
+			} else if (ret != 0) {
+				/* Hard error; no recovery possible */
+				return ret;
+			}
+		}
+
+		if (!deferred) {
+			return 0;
+		}
+	}
+
+	return -ETIMEDOUT;
+}
+
+int32_t ti_clks_resume(void)
+{
+	uint8_t tries;
+	ti_clk_idx_t i;
+	int32_t ret;
+	bool deferred;
+
+	for (tries = 0U; tries < LPM_CLK_MAX_TRIES; tries++) {
+		deferred = false;
+
+		for (i = 1U; i < soc_clock_count; i++) {
+			ret = ti_clk_resume_restore(&soc_clocks[i]);
+			if (ret == -EINVAL) {
+				/* Parent not yet resumed; retry this pass */
+				deferred = true;
+			} else if (ret != 0) {
+				/* Hard error; no recovery possible */
+				return ret;
+			}
+		}
+
+		if (!deferred) {
+			return 0;
+		}
+	}
+
+	return -ETIMEDOUT;
 }
 
 int32_t ti_clk_init(void)

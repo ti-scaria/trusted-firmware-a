@@ -5,7 +5,7 @@
  * The system works in a message response protocol
  * See: http://processors.wiki.ti.com/index.php/TISCI for details
  *
- * Copyright (C) 2018-2025 Texas Instruments Incorporated - https://www.ti.com/
+ * Copyright (C) 2018-2026 Texas Instruments Incorporated - https://www.ti.com/
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -31,7 +31,9 @@
 #define TI_SCI_MSG_SET_DEVICE_RESETS	0x0202
 
 /* Low Power Mode Requests */
+#define TI_SCI_MSG_PREPARE_SLEEP	0x0300
 #define TI_SCI_MSG_ENTER_SLEEP		0x0301
+#define TI_SCI_MSG_MIN_CTX_RESTORE	0x0308
 #define TI_SCI_MSG_LPM_GET_NEXT_SYS_MODE 0x030d
 #define TISCI_MSG_LPM_ENCRYPT_TFA	0x030F
 
@@ -772,6 +774,23 @@ struct ti_sci_msg_req_wait_proc_boot_status {
 	uint32_t status_flags_1_clr_any_wait;
 } __packed;
 
+/*
+ * struct ti_sci_msg_req_prepare_sleep - Request for TI_SCI_MSG_PREPARE_SLEEP.
+ *
+ * hdr:          Generic TISCI message header.
+ * mode:         Low power mode to enter.
+ * ctx_lo:       Low 32-bits of physical address for TIFS context save.
+ * ctx_hi:       High 32-bits of physical address for TIFS context save.
+ * debug_flags:  Debug flags passed to TIFS.
+ */
+struct ti_sci_msg_req_prepare_sleep {
+	struct ti_sci_msg_hdr hdr;
+	uint8_t mode;
+	uint32_t ctx_lo;
+	uint32_t ctx_hi;
+	uint32_t debug_flags;
+} __packed;
+
 /**
  * struct ti_sci_msg_req_enter_sleep - Request for TI_SCI_MSG_ENTER_SLEEP.
  *
@@ -831,6 +850,24 @@ struct ti_sci_msg_resp_lpm_get_next_sys_mode {
 struct tisci_msg_boot_notification_msg {
 	struct ti_sci_msg_hdr hdr;
 	uint32_t extboot_status;
+} __packed;
+
+/*
+ * struct tisci_msg_min_context_restore_req - Request for TI_SCI_MSG_MIN_CTX_RESTORE.
+ *
+ * Sent from the bootloader to TIFS during RTC + DDR resume to notify TIFS
+ * that DDR is active and ready for its minimal context to be restored from
+ * the address provided. DDR must be fully restored from self-refresh by the
+ * bootloader before this message is sent.
+ *
+ * hdr:    Standard TISCI message header.
+ * ctx_lo: Low 32-bits of the physical address holding the TIFS context.
+ * ctx_hi: High 32-bits of the physical address holding the TIFS context.
+ */
+struct tisci_msg_min_context_restore_req {
+	struct ti_sci_msg_hdr	hdr;
+	uint32_t			ctx_lo;
+	uint32_t			ctx_hi;
 } __packed;
 
 /*

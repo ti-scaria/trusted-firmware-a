@@ -2,7 +2,7 @@
  * Texas Instruments System Control Interface API
  *   Based on Linux and U-Boot implementation
  *
- * Copyright (C) 2018-2025 Texas Instruments Incorporated - https://www.ti.com/
+ * Copyright (C) 2018-2026 Texas Instruments Incorporated - https://www.ti.com/
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -270,6 +270,17 @@ int ti_sci_enter_sleep(uint8_t proc_id,
 		       uint8_t mode,
 		       uint64_t core_resume_addr);
 int ti_sci_lpm_get_next_sys_mode(uint8_t *next_mode);
+
+/*
+* Low power mode identifiers as defined by the TISCI Firmware API Documentation
+* Chapter 2: Power Management: TISCI PM Low Power Mode API Documentation
+*/
+
+#define TI_K3_SLEEP_MODE_DEEP_SLEEP 0x0
+#define TI_K3_SLEEP_MODE_RTC_PLUS_DDR 0x6
+#define TI_K3_SLEEP_MODE_RTC_ONLY 0x7
+#define TI_K3_SLEEP_MODE_DSS_PLUS_DEEP_SLEEP 0x8
+
 int ti_sci_encrypt_tfa(uint64_t src_tfa_addr, size_t src_tfa_len);
 
 /**
@@ -280,6 +291,18 @@ int ti_sci_encrypt_tfa(uint64_t src_tfa_addr, size_t src_tfa_len);
  * Returns 0 for successful request, else returns corresponding error message.
  */
 int ti_sci_boot_notification(void);
+
+/*
+ * ti_sci_prepare_sleep() - Initiate system transition into low power mode.
+ *
+ * mode:               Low power mode to enter.
+ * context_save_addr:  Physical address for TIFS to save its secure context.
+ * debug_flags:        Optional debug flags to pass to TIFS.
+ *
+ * Return 0 on success, negative error code otherwise.
+ */
+int ti_sci_prepare_sleep(uint8_t mode, uint64_t context_save_addr,
+			 uint32_t debug_flags);
 
 /**
  * Firewall operations
