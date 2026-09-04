@@ -70,6 +70,7 @@ PLAT_INCLUDES +=	\
 			-I${PLAT_PATH}/common/drivers/k3-ddrss \
 			-I${PLAT_PATH}/common/drivers/k3-ddrss/common \
 			-I${PLAT_PATH}/common/drivers/k3-ddrss/16bit \
+			-I${PLAT_PATH}/common/drivers/lpm		\
 			-I${PLAT_PATH}/board/${TARGET_BOARD}/include	\
 			-I${PLAT_PATH}					\
 			-I${PLAT_PATH}/common/pm		\
@@ -91,6 +92,11 @@ K3_PSCI_SOURCES		+= \
 
 K3_TI_SCI_TRANSPORT	:= \
 				drivers/ti/ipc/mailbox.c \
+
+# Build the LPM stub as a standalone binary and embed it as a blob in BL31.
+include ${PLAT_PATH}/common/drivers/lpm/lpm_stub.mk
+
+MODULE_OBJS		+=	${LPM_STUB_BLOB_O}
 
 BL31_SOURCES		+= \
 				drivers/clk/clk.c			\
