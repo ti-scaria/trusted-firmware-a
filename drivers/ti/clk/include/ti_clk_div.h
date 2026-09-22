@@ -207,4 +207,19 @@ uint32_t ti_clk_get_div(struct ti_clk *clkp);
  */
 int32_t ti_clk_div_init(struct ti_clk *clkp);
 
+/*
+ * Save the current register-based divider value before entering low power
+ * mode so it can be restored during resume.
+ *
+ * Return 0 on success.
+ */
+int32_t ti_clk_div_suspend_save(struct ti_clk *clkp);
+
+/*
+ * Restore the saved register-based divider value after exiting low power mode.
+ *
+ * Return 0 on success, -EFAULT if the hardware rejects the divider value.
+ */
+int32_t ti_clk_div_resume_restore(struct ti_clk *clkp);
+
 #endif /* TI_CLK_DIV_H */

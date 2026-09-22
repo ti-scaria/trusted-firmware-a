@@ -24,6 +24,9 @@ $(eval $(call add_define,BL32_BASE))
 PRELOADED_BL33_BASE ?= 0x82000000
 $(eval $(call add_define,PRELOADED_BL33_BASE))
 
+TIFS_LPM_SAVE_CTX ?= 0x801fc000
+$(eval $(call add_define,TIFS_LPM_SAVE_CTX))
+
 K3_HW_CONFIG_BASE ?= 0x88000000
 $(eval $(call add_define,K3_HW_CONFIG_BASE))
 
@@ -70,6 +73,7 @@ PLAT_INCLUDES +=	\
 			-I${PLAT_PATH}/common/drivers/k3-ddrss \
 			-I${PLAT_PATH}/common/drivers/k3-ddrss/common \
 			-I${PLAT_PATH}/common/drivers/k3-ddrss/16bit \
+			-I${PLAT_PATH}/common/drivers/lpm		\
 			-I${PLAT_PATH}/board/${TARGET_BOARD}/include	\
 			-I${PLAT_PATH}					\
 			-I${PLAT_PATH}/common/pm		\
@@ -92,6 +96,16 @@ K3_PSCI_SOURCES		+= \
 K3_TI_SCI_TRANSPORT	:= \
 				drivers/ti/ipc/mailbox.c \
 
+# Build the LPM stub as a standalone binary and embed it as a blob in BL31.
+include ${PLAT_PATH}/common/drivers/lpm/lpm_stub.mk
+
+MODULE_OBJS		+=	${LPM_STUB_BLOB_O}
+
+# BL31 LPM sources: LPM sources that run from DDR and initiate LPM entry to SRAM LPM stub.
+K3_LPM_SOURCES		:=	\
+				${PLAT_PATH}/common/drivers/lpm/switch_stack.S	\
+				${PLAT_PATH}/common/drivers/lpm/k3_lpm_ctrl.c
+
 BL31_SOURCES		+= \
 				drivers/clk/clk.c			\
 				drivers/delay_timer/delay_timer.c \
@@ -103,6 +117,7 @@ BL31_SOURCES		+= \
 				drivers/scmi-msg/power_domain.c \
 				${K3_PSCI_SOURCES}		\
 				${K3_TI_SCI_TRANSPORT}		\
+				${K3_LPM_SOURCES}		\
 				${PLAT_PATH}/common/scmi/ti_scmi_clk_data.c	\
 				${PLAT_PATH}/common/scmi/ti_scmi_pd_data.c	\
 				${PLAT_PATH}/common/am62l_bl31_setup.c \
@@ -115,5 +130,8 @@ BL1_SOURCES		+= \
 				${PLAT_PATH}/common/am62l_psc_minimal.c \
 				plat/ti/common/k3_helpers.S \
 				drivers/io/io_storage.c \
+				drivers/delay_timer/delay_timer.c \
+				drivers/delay_timer/generic_delay_timer.c \
 				${K3_LPDDR4_SOURCES} \
 				${K3_TI_SCI_TRANSPORT} \
+				${K3_TI_SCI_SOURCES} \
